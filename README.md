@@ -58,12 +58,16 @@ python scripts\download_model.py
 
 ```powershell
 python scripts\demo_generate.py
-python scripts\bench_fragmentation.py            # CPU only, no model
+python scripts\bench_fragmentation.py --kv-pool-tokens 4096 --requests 64
 python -m pytest tests\test_block_manager.py tests\test_scheduler.py tests\test_paged_attention.py -q
 python -m pytest tests\ -q                       # + the numerics tests against HF
-python scripts\bench_static_vs_continuous.py --num-requests 32
-python scripts\bench_prefix_caching.py --requests 8
+python scripts\bench_static_vs_continuous.py --num-requests 32 --batch-size 8 `
+    --min-output 8 --max-output 512 --distribution heavy_tail
+python scripts\bench_prefix_caching.py --requests 6 --max-tokens 32
 ```
+
+The numbers quoted above came from exactly these commands on the machine described
+below; the JSON they write lands in `benchmarks/results/`.
 
 The numerics tests run on **CPU/float32** by default (no VRAM, no noise); set
 `MINIVLLM_TEST_DEVICE=cuda` to exercise the same assertions on the GPU path.
