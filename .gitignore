@@ -1,0 +1,20 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# local model weights (downloaded, not versioned)
+models/
+*.safetensors
+*.bin
+*.gguf
+
+# benchmark artifacts
+*.png
+*.csv
+
+# local secrets / scratch
+ssh.key
+.env

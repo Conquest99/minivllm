@@ -1,0 +1,26 @@
+{
+  "pool_tokens": 4096,
+  "pool_blocks": 256,
+  "block_size": 16,
+  "max_model_len": 2048,
+  "requests_offered": 64,
+  "request_tokens": {
+    "min": 58,
+    "max": 283,
+    "mean": 181.515625
+  },
+  "reserve": {
+    "blocks_per_request": 128,
+    "max_concurrent_requests": 2,
+    "tokens_held": 4096,
+    "tokens_actually_needed": 410
+  },
+  "paged": {
+    "max_concurrent_requests": 20,
+    "tokens_held": 3836,
+    "internal_fragmentation_tokens": 180
+  },
+  "concurrency_speedup": 10.0,
+  "reserve_waste_pct": 89.990234375,
+  "paged_waste_pct": 4.692387904066736
+}
