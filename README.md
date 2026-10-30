@@ -21,10 +21,13 @@ Not a competitor to vLLM. The goal is to be able to answer *"why is it built thi
                                     │  block_table per sequence
                     ┌───────────────▼───────────────────────────────┐
                     │ ModelRunner                                    │
-                    │  k_cache[num_blocks, block_size, kv_heads, d]   │
+                    │  k_cache[layers, num_blocks, block_size,        │
+                    │          kv_heads, head_dim]                    │
                     │  write by slot_mapping, read by block_table     │
                     └───────────────────────────────────────────────┘
 ```
+
+中文版见 [README.zh-CN.md](README.zh-CN.md)。
 
 ## What is implemented
 
@@ -36,7 +39,7 @@ Not a competitor to vLLM. The goal is to be able to answer *"why is it built thi
 | Continuous batching | [scheduler.py](minivllm/scheduler.py) | Requests join/leave every step instead of every batch |
 | Chunked prefill | `Scheduler._chunk_size` | A long prompt cannot freeze the decode stream |
 | Preemption (recompute) | `Scheduler._schedule_running` | Survive memory pressure without OOM or swap |
-| GQA / MQA | `_expand_kv` | 0.5B Qwen has 14 query heads but only 2 KV heads |
+| GQA / MQA | `_sdpa` (`enable_gqa`) | 0.5B Qwen has 14 query heads but only 2 KV heads |
 | Paged attention math | [paged_attention.py](minivllm/paged_attention.py) | `index_select` on a page table == contiguous KV, proven by test |
 
 ## Install
