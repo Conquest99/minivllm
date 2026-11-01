@@ -43,8 +43,7 @@
 ## 文件地图
 
 | 源文件 | 行数 | 难度 | 一句话作用 | 对应文档 |
-|---|---:|---|---|---|
-| [minivllm/__init__.py](../minivllm/__init__.py) | 14 | — | 包门面，导出 3 个名字 | [init.md](init.md) |
+|---|---:|---|---|---|| [minivllm/__init__.py](../minivllm/__init__.py) | 14 | — | 包门面，导出 3 个名字 | [init.md](init.md) |
 | [minivllm/config.py](../minivllm/config.py) | 73 | ★ | 所有可调参数与它们的约束 | [config.md](config.md) |
 | [minivllm/sequence.py](../minivllm/sequence.py) | 115 | ★ | 一条请求 = 一个增长的 token 流 + 一张页表 | [sequence.md](sequence.md) |
 | [minivllm/sampling.py](../minivllm/sampling.py) | 62 | ★ | 从 logits 里挑下一个 token | [sampling.md](sampling.md) |
@@ -65,6 +64,33 @@
 | [tests/test_scheduler.py](../tests/test_scheduler.py) | 174 | ★★ | 纯 CPU 的调度策略测试 | [tests-test_scheduler.md](tests-test_scheduler.md) |
 | [tests/test_model_runner.py](../tests/test_model_runner.py) | 165 | ★★★ | 与 `transformers` 逐 token 对拍 | [tests-test_model_runner.md](tests-test_model_runner.md) |
 | [tests/test_engine_e2e.py](../tests/test_engine_e2e.py) | 125 | ★★ | 「批处理不影响结果」这条最强性质 | [tests-test_engine_e2e.md](tests-test_engine_e2e.md) |
+
+---
+
+## 第二部分：miniagent（手写 Agent 循环）
+
+推理引擎解决「怎么高效地生成 token」，Agent 解决「生成什么、要不要调用工具、什么时候停」。
+两者共用同一个 `LLMEngine`——这正是把引擎写出来的意义。
+
+**先看** [agent-00-index.md](agent-00-index.md)：循环的伪代码、四条护栏、实测结果。
+
+| 源文件 | 行数 | 难度 | 一句话作用 |
+|---|---:|---|---|
+| [miniagent/types.py](../miniagent/types.py) | 140 | ★ | 全链路唯一的消息格式 |
+| [miniagent/tools.py](../miniagent/tools.py) | 240 | ★★ | 从函数签名推 JSON Schema + 执行边界 |
+| [miniagent/parser.py](../miniagent/parser.py) | 175 | ★★ | 模型文本 → 工具调用，兼容 4 种方言 |
+| [miniagent/builtin_tools.py](../miniagent/builtin_tools.py) | 175 | ★★ | 安全计算器 + 沙箱文件工具 |
+| [miniagent/backends.py](../miniagent/backends.py) | 230 | ★★ | 脚本 / 可调用 / 本地 / OpenAI 兼容 |
+| [miniagent/agent.py](../miniagent/agent.py) | 215 | ★★★ | ReAct 循环 + 四条护栏 |
+| [scripts/agent_demo.py](../scripts/agent_demo.py) | 165 | ★ | 逐步打印 trace 的 demo |
+
+测试（65 个，全部纯 CPU，无需模型）：[test_agent_tools.py](../tests/test_agent_tools.py)、[test_agent_parser.py](../tests/test_agent_parser.py)、[test_agent_loop.py](../tests/test_agent_loop.py)。
+
+```powershell
+python scripts\agent_demo.py                     # 脚本后端，0.2 秒看完整循环
+python scripts\agent_demo.py --backend scripted-error   # 看工具错误如何被回灌
+python scripts\agent_demo.py --backend local             # 真实 0.5B 模型
+```
 
 ---
 

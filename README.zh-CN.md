@@ -2,9 +2,11 @@
 
 用**纯 PyTorch** 从零重写 **PagedAttention** 与 **Continuous Batching** 的最小实现。工业引擎把这两个机制藏进融合 CUDA kernel 和几千行调度器里，这里把每一处都摊开：看得见、能单测、能测出数字。
 
+第二部分 [miniagent](miniagent/) 是在这个引擎之上手写的 Agent 循环——不用框架，两百行控制流加上让它能用的护栏。
+
 不是 vLLM 的竞品。目标只有一个——面试被问「*为什么这么设计*」时，能用**代码和数字**回答，而不是背博客。
 
-> 英文版见 [README.md](README.md)。
+> 英文版见 [README.md](README.md)，逐文件讲解见 [docs/00-index.md](docs/00-index.md)。
 
 ```
                     ┌───────────────────────────────────────────────┐
@@ -41,6 +43,23 @@
 | 抢占（重算） | `Scheduler._schedule_running` | 显存吃紧时不 OOM、不 swap |
 | GQA / MQA | `_sdpa`（`enable_gqa`） | 0.5B Qwen 有 14 个 query head，但只有 2 个 KV head |
 | Paged Attention 数学 | [paged_attention.py](minivllm/paged_attention.py) | 用测试证明：页表 `index_select` ≡ 连续 KV |
+
+### 第二部分：[miniagent](miniagent/)
+
+| 机制 | 位置 | 为什么重要 |
+|---|---|---|
+| 带护栏的循环 | [agent.py](miniagent/agent.py) | 步数上限、重复调用检测、解析重试预算 |
+| 从函数签名推 schema | [tools.py](miniagent/tools.py) | 用 `inspect` + docstring，schema 不可能和代码漂移 |
+| 宽容的解析 | [parser.py](miniagent/parser.py) | Qwen 标签、JSON 代码块、裸 JSON、ReAct，且永不抛异常 |
+| 工具错误当观察 | `ToolRegistry.execute` | 栈追踪教不会模型，可读的错误消息可以 |
+| 安全计算器 | [builtin_tools.py](miniagent/builtin_tools.py) | 走 AST 而不是 `eval`；文件访问锁在沙箱内 |
+| 可换后端 | [backends.py](miniagent/backends.py) | 脚本 / 本地引擎 / 任何 OpenAI 兼容端点 |
+
+```powershell
+python scripts\agent_demo.py                            # 确定性，无需 GPU
+python scripts\agent_demo.py --backend scripted-error   # 看工具错误如何被回灌
+python scripts\agent_demo.py --backend local            # 真实 0.5B 模型
+```
 
 ## 安装
 

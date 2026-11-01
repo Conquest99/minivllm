@@ -4,6 +4,8 @@ A minimal, readable re-implementation of **PagedAttention** and **continuous bat
 
 Not a competitor to vLLM. The goal is to be able to answer *"why is it built this way?"* with code and numbers instead of a blog post.
 
+Part two, [miniagent](miniagent/), is a hand-written agent loop on top of this engine -- no framework, ~200 lines of control flow plus the guards that make it safe.
+
 ```
                     ┌───────────────────────────────────────────────┐
   prompts ─────────▶│ Scheduler                                     │
@@ -25,9 +27,13 @@ Not a competitor to vLLM. The goal is to be able to answer *"why is it built thi
                     │          kv_heads, head_dim]                    │
                     │  write by slot_mapping, read by block_table     │
                     └───────────────────────────────────────────────┘
+
+   miniagent:  messages ─▶ model ─▶ parse ─▶ tools ─▶ observe ─┐
+                   ▲                                           │
+                   └───────────────────────────────────────────┘
 ```
 
-中文版见 [README.zh-CN.md](README.zh-CN.md)。
+中文版见 [README.zh-CN.md](README.zh-CN.md)，逐文件讲解见 [docs/00-index.md](docs/00-index.md)。
 
 ## What is implemented
 
@@ -41,6 +47,23 @@ Not a competitor to vLLM. The goal is to be able to answer *"why is it built thi
 | Preemption (recompute) | `Scheduler._schedule_running` | Survive memory pressure without OOM or swap |
 | GQA / MQA | `_sdpa` (`enable_gqa`) | 0.5B Qwen has 14 query heads but only 2 KV heads |
 | Paged attention math | [paged_attention.py](minivllm/paged_attention.py) | `index_select` on a page table == contiguous KV, proven by test |
+
+### Part two: [miniagent](miniagent/)
+
+| Mechanism | Where | Why it matters |
+|---|---|---|
+| Loop with guards | [agent.py](miniagent/agent.py) | max steps, repeated-call detection, parse-error budget |
+| Schema from signature | [tools.py](miniagent/tools.py) | `inspect` + docstrings, so schema cannot drift from the code |
+| Tolerant parsing | [parser.py](miniagent/parser.py) | Qwen tags, JSON fences, bare JSON, ReAct -- and never raises |
+| Tool errors as observations | `ToolRegistry.execute` | a stack trace teaches the model nothing; a readable error does |
+| Safe calculator | [builtin_tools.py](miniagent/builtin_tools.py) | walks the AST instead of calling `eval`; sandboxed file access |
+| Swappable backends | [backends.py](miniagent/backends.py) | scripted / local engine / any OpenAI-compatible endpoint |
+
+```powershell
+python scripts\agent_demo.py                            # deterministic, no GPU
+python scripts\agent_demo.py --backend scripted-error   # watch error recovery
+python scripts\agent_demo.py --backend local            # the real 0.5B checkpoint
+```
 
 ## Install
 
@@ -67,6 +90,8 @@ python -m pytest tests\ -q                       # + the numerics tests against 
 python scripts\bench_static_vs_continuous.py --num-requests 32 --batch-size 8 `
     --min-output 8 --max-output 512 --distribution heavy_tail
 python scripts\bench_prefix_caching.py --requests 6 --max-tokens 32
+python scripts\agent_demo.py                     # agent loop, scripted model
+python -m pytest tests\ -q                       # 106 tests
 ```
 
 The numbers quoted above came from exactly these commands on the machine described
