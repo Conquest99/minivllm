@@ -42,7 +42,7 @@ __all__ = ["EngineConfig", "LLMEngine", "SamplingParams", "__version__"]
 
 ### `__version__ = "0.1.0"`
 
-和 [pyproject.toml](../pyproject.toml) 里的 `version` 保持手动同步。
+和 [pyproject.toml](../../pyproject.toml) 里的 `version` 保持手动同步。
 
 > 为什么 import 顺序是 config → llm_engine → sampling？因为 `llm_engine` 依赖前两者。放后面能避免循环 import 的潜在问题（虽然这里其实不构成循环）。
 

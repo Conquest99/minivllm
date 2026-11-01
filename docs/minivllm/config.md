@@ -109,7 +109,7 @@ static_batching: bool = False
 ```
 
 * `enable_prefix_caching`：关掉时 [block_manager.py](block_manager.md) 的 `match_prefix` 直接返回空列表，其余逻辑完全不变——这让「开/关」的 A/B 对比非常干净。
-* `static_batching`：**只给 benchmark 用**。打开后调度器模拟旧式引擎（一批跑到底才换新请求）。它的存在让 [bench_static_vs_continuous.py](../scripts/bench_static_vs_continuous.py) 能只翻转一个开关就得到对比，而不是拿两套代码比。
+* `static_batching`：**只给 benchmark 用**。打开后调度器模拟旧式引擎（一批跑到底才换新请求）。它的存在让 [bench_static_vs_continuous.py](../../scripts/bench_static_vs_continuous.py) 能只翻转一个开关就得到对比，而不是拿两套代码比。
 
 ### 参数校验：`__post_init__`
 

@@ -6,7 +6,7 @@
 
 不是 vLLM 的竞品。目标只有一个——面试被问「*为什么这么设计*」时，能用**代码和数字**回答，而不是背博客。
 
-> 英文版见 [README.md](README.md)，逐文件讲解见 [docs/00-index.md](docs/00-index.md)。
+> 英文版见 [README.md](README.md)。逐文件讲解：[docs/README.md](docs/README.md)（引擎 [docs/minivllm/](docs/minivllm/00-index.md) · Agent [docs/miniagent/](docs/miniagent/00-index.md)）。
 
 ```
                     ┌───────────────────────────────────────────────┐

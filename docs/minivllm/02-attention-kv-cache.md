@@ -188,7 +188,7 @@ q' = q·cos(pθ) + rotate_half(q)·sin(pθ)
 
 妙处在于：两个向量各自旋转后，**点积只依赖它们的角度差**（即相对位置 `p_q - p_k`）。所以模型学到的是「相隔几个 token」，而不是「绝对第几个」。
 
-代码里对应 [model_runner.py](../minivllm/model_runner.py)：
+代码里对应 [model_runner.py](../../minivllm/model_runner.py)：
 
 ```python
 cos, sin = self.model.rotary_emb(hidden.unsqueeze(0), inp["positions"].unsqueeze(0))

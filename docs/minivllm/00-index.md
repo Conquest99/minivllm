@@ -1,6 +1,9 @@
 # 代码详解 · 索引
 
-这套文档是 [minivllm](../README.zh-CN.md) 的逐文件讲解，目标读者是**想从零补 PyTorch 与推理引擎基础**的人。
+> **第一部分 · 推理引擎**（minivllm）。Agent 部分见 [../miniagent/00-index.md](../miniagent/00-index.md)。
+> 全部文档总览见 [../README.md](../README.md)。
+
+这套文档是 [minivllm](../../README.zh-CN.md) 的逐文件讲解，目标读者是**想从零补 PyTorch 与推理引擎基础**的人。
 
 每个源文件都有一份对应文档，结构统一：
 
@@ -43,27 +46,27 @@
 ## 文件地图
 
 | 源文件 | 行数 | 难度 | 一句话作用 | 对应文档 |
-|---|---:|---|---|---|| [minivllm/__init__.py](../minivllm/__init__.py) | 14 | — | 包门面，导出 3 个名字 | [init.md](init.md) |
-| [minivllm/config.py](../minivllm/config.py) | 73 | ★ | 所有可调参数与它们的约束 | [config.md](config.md) |
-| [minivllm/sequence.py](../minivllm/sequence.py) | 115 | ★ | 一条请求 = 一个增长的 token 流 + 一张页表 | [sequence.md](sequence.md) |
-| [minivllm/sampling.py](../minivllm/sampling.py) | 62 | ★ | 从 logits 里挑下一个 token | [sampling.md](sampling.md) |
-| [minivllm/block_manager.py](../minivllm/block_manager.py) | 290 | ★★★ | 物理页池：分配、引用计数、COW、前缀缓存 | [block_manager.md](block_manager.md) |
-| [minivllm/paged_attention.py](../minivllm/paged_attention.py) | 223 | ★★★ | 按页表把散落的 KV 取出来做 attention | [paged_attention.md](paged_attention.md) |
-| [minivllm/model_runner.py](../minivllm/model_runner.py) | 238 | ★★★ | 一层层跑 transformer，KV 写进分页池 | [model_runner.md](model_runner.md) |
-| [minivllm/scheduler.py](../minivllm/scheduler.py) | 202 | ★★★ | 每个 step 决定「谁跑、跑几个 token」 | [scheduler.md](scheduler.md) |
-| [minivllm/llm_engine.py](../minivllm/llm_engine.py) | 207 | ★★ | 把调度 → 前向 → 采样 → 回收串成循环 | [llm_engine.md](llm_engine.md) |
-| [scripts/_workload.py](../scripts/_workload.py) | 75 | ★ | 统一的压测请求集 + 分位数统计 | [scripts-_workload.md](scripts-_workload.md) |
-| [scripts/download_model.py](../scripts/download_model.py) | 41 | ★ | 走镜像/代理拉权重 | [scripts-download_model.md](scripts-download_model.md) |
-| [scripts/demo_generate.py](../scripts/demo_generate.py) | 67 | ★ | 最小可运行示例 | [scripts-demo_generate.md](scripts-demo_generate.md) |
-| [scripts/bench_fragmentation.py](../scripts/bench_fragmentation.py) | 121 | ★★ | 只测分配器：预留 vs 分页的浪费 | [scripts-bench_fragmentation.md](scripts-bench_fragmentation.md) |
-| [scripts/bench_static_vs_continuous.py](../scripts/bench_static_vs_continuous.py) | 241 | ★★ | 静态批 vs 连续批，只翻转一个开关 | [scripts-bench_static_vs_continuous.md](scripts-bench_static_vs_continuous.md) |
-| [scripts/bench_prefix_caching.py](../scripts/bench_prefix_caching.py) | 136 | ★★ | 前缀缓存对 TTFT 的收益 | [scripts-bench_prefix_caching.md](scripts-bench_prefix_caching.md) |
-| [tests/conftest.py](../tests/conftest.py) | 45 | ★ | 共享 fixture：一个 CPU/fp32 的 ModelRunner | [tests-conftest.md](tests-conftest.md) |
-| [tests/test_block_manager.py](../tests/test_block_manager.py) | 146 | ★★ | 分配器的 9 条不变量 | [tests-test_block_manager.md](tests-test_block_manager.md) |
-| [tests/test_paged_attention.py](../tests/test_paged_attention.py) | 180 | ★★ | 分页 attention 必须等于稠密 attention | [tests-test_paged_attention.md](tests-test_paged_attention.md) |
-| [tests/test_scheduler.py](../tests/test_scheduler.py) | 174 | ★★ | 纯 CPU 的调度策略测试 | [tests-test_scheduler.md](tests-test_scheduler.md) |
-| [tests/test_model_runner.py](../tests/test_model_runner.py) | 165 | ★★★ | 与 `transformers` 逐 token 对拍 | [tests-test_model_runner.md](tests-test_model_runner.md) |
-| [tests/test_engine_e2e.py](../tests/test_engine_e2e.py) | 125 | ★★ | 「批处理不影响结果」这条最强性质 | [tests-test_engine_e2e.md](tests-test_engine_e2e.md) |
+|---|---:|---|---|---|| [minivllm/__init__.py](../../minivllm/__init__.py) | 14 | — | 包门面，导出 3 个名字 | [init.md](init.md) |
+| [minivllm/config.py](../../minivllm/config.py) | 73 | ★ | 所有可调参数与它们的约束 | [config.md](config.md) |
+| [minivllm/sequence.py](../../minivllm/sequence.py) | 115 | ★ | 一条请求 = 一个增长的 token 流 + 一张页表 | [sequence.md](sequence.md) |
+| [minivllm/sampling.py](../../minivllm/sampling.py) | 62 | ★ | 从 logits 里挑下一个 token | [sampling.md](sampling.md) |
+| [minivllm/block_manager.py](../../minivllm/block_manager.py) | 290 | ★★★ | 物理页池：分配、引用计数、COW、前缀缓存 | [block_manager.md](block_manager.md) |
+| [minivllm/paged_attention.py](../../minivllm/paged_attention.py) | 223 | ★★★ | 按页表把散落的 KV 取出来做 attention | [paged_attention.md](paged_attention.md) |
+| [minivllm/model_runner.py](../../minivllm/model_runner.py) | 238 | ★★★ | 一层层跑 transformer，KV 写进分页池 | [model_runner.md](model_runner.md) |
+| [minivllm/scheduler.py](../../minivllm/scheduler.py) | 202 | ★★★ | 每个 step 决定「谁跑、跑几个 token」 | [scheduler.md](scheduler.md) |
+| [minivllm/llm_engine.py](../../minivllm/llm_engine.py) | 207 | ★★ | 把调度 → 前向 → 采样 → 回收串成循环 | [llm_engine.md](llm_engine.md) |
+| [scripts/_workload.py](../../scripts/_workload.py) | 75 | ★ | 统一的压测请求集 + 分位数统计 | [scripts-_workload.md](scripts-_workload.md) |
+| [scripts/download_model.py](../../scripts/download_model.py) | 41 | ★ | 走镜像/代理拉权重 | [scripts-download_model.md](scripts-download_model.md) |
+| [scripts/demo_generate.py](../../scripts/demo_generate.py) | 67 | ★ | 最小可运行示例 | [scripts-demo_generate.md](scripts-demo_generate.md) |
+| [scripts/bench_fragmentation.py](../../scripts/bench_fragmentation.py) | 121 | ★★ | 只测分配器：预留 vs 分页的浪费 | [scripts-bench_fragmentation.md](scripts-bench_fragmentation.md) |
+| [scripts/bench_static_vs_continuous.py](../../scripts/bench_static_vs_continuous.py) | 241 | ★★ | 静态批 vs 连续批，只翻转一个开关 | [scripts-bench_static_vs_continuous.md](scripts-bench_static_vs_continuous.md) |
+| [scripts/bench_prefix_caching.py](../../scripts/bench_prefix_caching.py) | 136 | ★★ | 前缀缓存对 TTFT 的收益 | [scripts-bench_prefix_caching.md](scripts-bench_prefix_caching.md) |
+| [tests/conftest.py](../../tests/conftest.py) | 45 | ★ | 共享 fixture：一个 CPU/fp32 的 ModelRunner | [tests-conftest.md](tests-conftest.md) |
+| [tests/test_block_manager.py](../../tests/test_block_manager.py) | 146 | ★★ | 分配器的 9 条不变量 | [tests-test_block_manager.md](tests-test_block_manager.md) |
+| [tests/test_paged_attention.py](../../tests/test_paged_attention.py) | 180 | ★★ | 分页 attention 必须等于稠密 attention | [tests-test_paged_attention.md](tests-test_paged_attention.md) |
+| [tests/test_scheduler.py](../../tests/test_scheduler.py) | 174 | ★★ | 纯 CPU 的调度策略测试 | [tests-test_scheduler.md](tests-test_scheduler.md) |
+| [tests/test_model_runner.py](../../tests/test_model_runner.py) | 165 | ★★★ | 与 `transformers` 逐 token 对拍 | [tests-test_model_runner.md](tests-test_model_runner.md) |
+| [tests/test_engine_e2e.py](../../tests/test_engine_e2e.py) | 125 | ★★ | 「批处理不影响结果」这条最强性质 | [tests-test_engine_e2e.md](tests-test_engine_e2e.md) |
 
 ---
 
@@ -72,25 +75,25 @@
 推理引擎解决「怎么高效地生成 token」，Agent 解决「生成什么、要不要调用工具、什么时候停」。
 两者共用同一个 `LLMEngine`——这正是把引擎写出来的意义。
 
-**先看** [agent-00-index.md](agent-00-index.md)：循环的伪代码、四条护栏、实测结果。
+**先看** [agent-00-index.md](../miniagent/00-index.md)：循环的伪代码、四条护栏、实测结果。
 
 | 源文件 | 行数 | 难度 | 一句话作用 | 对应文档 |
 |---|---:|---|---|---|
-| [miniagent/types.py](../miniagent/types.py) | 140 | ★ | 全链路唯一的消息格式 | [miniagent-types.md](miniagent-types.md) |
-| [miniagent/tools.py](../miniagent/tools.py) | 240 | ★★ | 从函数签名推 JSON Schema + 执行边界 | [miniagent-tools.md](miniagent-tools.md) |
-| [miniagent/parser.py](../miniagent/parser.py) | 175 | ★★ | 模型文本 → 工具调用，兼容 4 种方言 | [miniagent-parser.md](miniagent-parser.md) |
-| [miniagent/builtin_tools.py](../miniagent/builtin_tools.py) | 175 | ★★ | 安全计算器 + 沙箱文件工具 | [miniagent-builtin_tools.md](miniagent-builtin_tools.md) |
-| [miniagent/backends.py](../miniagent/backends.py) | 230 | ★★ | 脚本 / 可调用 / 本地 / OpenAI 兼容 | [miniagent-backends.md](miniagent-backends.md) |
-| [miniagent/agent.py](../miniagent/agent.py) | 215 | ★★★ | ReAct 循环 + 四条护栏 | [miniagent-agent.md](miniagent-agent.md) |
-| [scripts/agent_demo.py](../scripts/agent_demo.py) | 165 | ★ | 逐步打印 trace 的 demo | [scripts-agent_demo.md](scripts-agent_demo.md) |
+| [miniagent/types.py](../../miniagent/types.py) | 140 | ★ | 全链路唯一的消息格式 | [miniagent-types.md](../miniagent/types.md) |
+| [miniagent/tools.py](../../miniagent/tools.py) | 240 | ★★ | 从函数签名推 JSON Schema + 执行边界 | [miniagent-tools.md](../miniagent/tools.md) |
+| [miniagent/parser.py](../../miniagent/parser.py) | 175 | ★★ | 模型文本 → 工具调用，兼容 4 种方言 | [miniagent-parser.md](../miniagent/parser.md) |
+| [miniagent/builtin_tools.py](../../miniagent/builtin_tools.py) | 175 | ★★ | 安全计算器 + 沙箱文件工具 | [miniagent-builtin_tools.md](../miniagent/builtin_tools.md) |
+| [miniagent/backends.py](../../miniagent/backends.py) | 230 | ★★ | 脚本 / 可调用 / 本地 / OpenAI 兼容 | [miniagent-backends.md](../miniagent/backends.md) |
+| [miniagent/agent.py](../../miniagent/agent.py) | 215 | ★★★ | ReAct 循环 + 四条护栏 | [miniagent-agent.md](../miniagent/agent.md) |
+| [scripts/agent_demo.py](../../scripts/agent_demo.py) | 165 | ★ | 逐步打印 trace 的 demo | [scripts-agent_demo.md](../miniagent/scripts-agent_demo.md) |
 
 测试（65 个，全部纯 CPU，无需模型）：
 
 | 文件 | 验证什么 | 对应文档 |
 |---|---|---|
-| [test_agent_tools.py](../tests/test_agent_tools.py) | schema 推导、参数校验、计算器安全、沙箱逃逸 | [tests-test_agent_tools.md](tests-test_agent_tools.md) |
-| [test_agent_parser.py](../tests/test_agent_parser.py) | 4 种方言 + 容错 + 从不抛异常 | [tests-test_agent_parser.md](tests-test_agent_parser.md) |
-| [test_agent_loop.py](../tests/test_agent_loop.py) | 控制流全部分支 + 四条护栏 | [tests-test_agent_loop.md](tests-test_agent_loop.md) |
+| [test_agent_tools.py](../../tests/test_agent_tools.py) | schema 推导、参数校验、计算器安全、沙箱逃逸 | [tests-test_agent_tools.md](../miniagent/tests-tools.md) |
+| [test_agent_parser.py](../../tests/test_agent_parser.py) | 4 种方言 + 容错 + 从不抛异常 | [tests-test_agent_parser.md](../miniagent/tests-parser.md) |
+| [test_agent_loop.py](../../tests/test_agent_loop.py) | 控制流全部分支 + 四条护栏 | [tests-test_agent_loop.md](../miniagent/tests-loop.md) |
 
 ```powershell
 python scripts\agent_demo.py                     # 脚本后端，0.2 秒看完整循环

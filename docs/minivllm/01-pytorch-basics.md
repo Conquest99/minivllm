@@ -1,6 +1,6 @@
 # PyTorch 基础补课（对照本项目）
 
-这篇不是 PyTorch 教程的复刻，而是**只讲本项目真正用到的东西**，并且每条都指回代码里的位置。读完你应该能看懂 [paged_attention.py](../minivllm/paged_attention.py) 里的每一行。
+这篇不是 PyTorch 教程的复刻，而是**只讲本项目真正用到的东西**，并且每条都指回代码里的位置。读完你应该能看懂 [paged_attention.py](../../minivllm/paged_attention.py) 里的每一行。
 
 ---
 
@@ -105,7 +105,7 @@ GQA 场景：14 个 query head，2 个 KV head。要让 `[.., 2, L, D]` 的 K �
 * `repeat_interleave(7, dim=-3)` → 真的生成一份 7 倍大的张量。序列长 4000、head_dim 64 时，K 是 `14 × 4000 × 64 × 2字节 ≈ 7 MB`，每层每批都多算一遍。
 * `enable_gqa=True` → 交给 SDPA 内部广播，**一个字节都不多占**。
 
-这就是 [paged_attention.py](../minivllm/paged_attention.py) 里 `_sdpa()` 存在的理由。修掉它之后 batch=16 的 step 时间从 63 ms 降到 48 ms。
+这就是 [paged_attention.py](../../minivllm/paged_attention.py) 里 `_sdpa()` 存在的理由。修掉它之后 batch=16 的 step 时间从 63 ms 降到 48 ms。
 
 ---
 

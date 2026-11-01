@@ -28,7 +28,7 @@ p99 延迟 (s)                        94.981          59.914
 engine.cfg.static_batching = static
 ```
 
-`static_batching` 在 [scheduler.py](../minivllm/scheduler.py) 里做了两件事：
+`static_batching` 在 [scheduler.py](../../minivllm/scheduler.py) 里做了两件事：
 
 1. `running` 非空时**不接收**新请求
 2. 新批次里所有请求的 `max_tokens` **拉齐到最长那条**

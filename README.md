@@ -33,7 +33,7 @@ Part two, [miniagent](miniagent/), is a hand-written agent loop on top of this e
                    └───────────────────────────────────────────┘
 ```
 
-中文版见 [README.zh-CN.md](README.zh-CN.md)，逐文件讲解见 [docs/00-index.md](docs/00-index.md)。
+中文版见 [README.zh-CN.md](README.zh-CN.md)。逐文件讲解：[docs/README.md](docs/README.md)（引擎 [docs/minivllm/](docs/minivllm/00-index.md) · Agent [docs/miniagent/](docs/miniagent/00-index.md)）。
 
 ## What is implemented
 
