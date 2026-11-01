@@ -74,17 +74,23 @@
 
 **先看** [agent-00-index.md](agent-00-index.md)：循环的伪代码、四条护栏、实测结果。
 
-| 源文件 | 行数 | 难度 | 一句话作用 |
-|---|---:|---|---|
-| [miniagent/types.py](../miniagent/types.py) | 140 | ★ | 全链路唯一的消息格式 |
-| [miniagent/tools.py](../miniagent/tools.py) | 240 | ★★ | 从函数签名推 JSON Schema + 执行边界 |
-| [miniagent/parser.py](../miniagent/parser.py) | 175 | ★★ | 模型文本 → 工具调用，兼容 4 种方言 |
-| [miniagent/builtin_tools.py](../miniagent/builtin_tools.py) | 175 | ★★ | 安全计算器 + 沙箱文件工具 |
-| [miniagent/backends.py](../miniagent/backends.py) | 230 | ★★ | 脚本 / 可调用 / 本地 / OpenAI 兼容 |
-| [miniagent/agent.py](../miniagent/agent.py) | 215 | ★★★ | ReAct 循环 + 四条护栏 |
-| [scripts/agent_demo.py](../scripts/agent_demo.py) | 165 | ★ | 逐步打印 trace 的 demo |
+| 源文件 | 行数 | 难度 | 一句话作用 | 对应文档 |
+|---|---:|---|---|---|
+| [miniagent/types.py](../miniagent/types.py) | 140 | ★ | 全链路唯一的消息格式 | [miniagent-types.md](miniagent-types.md) |
+| [miniagent/tools.py](../miniagent/tools.py) | 240 | ★★ | 从函数签名推 JSON Schema + 执行边界 | [miniagent-tools.md](miniagent-tools.md) |
+| [miniagent/parser.py](../miniagent/parser.py) | 175 | ★★ | 模型文本 → 工具调用，兼容 4 种方言 | [miniagent-parser.md](miniagent-parser.md) |
+| [miniagent/builtin_tools.py](../miniagent/builtin_tools.py) | 175 | ★★ | 安全计算器 + 沙箱文件工具 | [miniagent-builtin_tools.md](miniagent-builtin_tools.md) |
+| [miniagent/backends.py](../miniagent/backends.py) | 230 | ★★ | 脚本 / 可调用 / 本地 / OpenAI 兼容 | [miniagent-backends.md](miniagent-backends.md) |
+| [miniagent/agent.py](../miniagent/agent.py) | 215 | ★★★ | ReAct 循环 + 四条护栏 | [miniagent-agent.md](miniagent-agent.md) |
+| [scripts/agent_demo.py](../scripts/agent_demo.py) | 165 | ★ | 逐步打印 trace 的 demo | [scripts-agent_demo.md](scripts-agent_demo.md) |
 
-测试（65 个，全部纯 CPU，无需模型）：[test_agent_tools.py](../tests/test_agent_tools.py)、[test_agent_parser.py](../tests/test_agent_parser.py)、[test_agent_loop.py](../tests/test_agent_loop.py)。
+测试（65 个，全部纯 CPU，无需模型）：
+
+| 文件 | 验证什么 | 对应文档 |
+|---|---|---|
+| [test_agent_tools.py](../tests/test_agent_tools.py) | schema 推导、参数校验、计算器安全、沙箱逃逸 | [tests-test_agent_tools.md](tests-test_agent_tools.md) |
+| [test_agent_parser.py](../tests/test_agent_parser.py) | 4 种方言 + 容错 + 从不抛异常 | [tests-test_agent_parser.md](tests-test_agent_parser.md) |
+| [test_agent_loop.py](../tests/test_agent_loop.py) | 控制流全部分支 + 四条护栏 | [tests-test_agent_loop.md](tests-test_agent_loop.md) |
 
 ```powershell
 python scripts\agent_demo.py                     # 脚本后端，0.2 秒看完整循环

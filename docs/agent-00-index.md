@@ -23,14 +23,25 @@ loop:
 
 ## 文件分工
 
-| 文件 | 职责 | 关键点 |
+| 文件 | 职责 | 关键点 | 文档 |
+|---|---|---|---|
+| [types.py](../miniagent/types.py) | `Message` / `ToolCall` / `Step` / `AgentResult` | 全链路只用一种消息格式 | [miniagent-types.md](miniagent-types.md) |
+| [tools.py](../miniagent/tools.py) | `@tool` 装饰器 + JSON Schema 生成 + 执行边界 | 从函数签名和 docstring **自动推出** schema | [miniagent-tools.md](miniagent-tools.md) |
+| [parser.py](../miniagent/parser.py) | 把模型输出的文本解析成工具调用 | 兼容 4 种方言，坏输出不抛异常 | [miniagent-parser.md](miniagent-parser.md) |
+| [builtin_tools.py](../miniagent/builtin_tools.py) | 计算器、文本统计、沙箱文件读写 | 不用 `eval`，路径逃逸靠 `resolve` 而非字符串过滤 | [miniagent-builtin_tools.md](miniagent-builtin_tools.md) |
+| [backends.py](../miniagent/backends.py) | `complete(messages, tools) -> str` | 脚本 / 可调用 / 本地 mini-vllm / OpenAI 兼容 | [miniagent-backends.md](miniagent-backends.md) |
+| [agent.py](../miniagent/agent.py) | ReAct 循环 + 四条护栏 | 循环检测、步数上限、解析重试、工具错误回灌 | [miniagent-agent.md](miniagent-agent.md) |
+| [scripts/agent_demo.py](../scripts/agent_demo.py) | 逐步打印 trace | 三种后端，从确定性到真实模型 | [scripts-agent_demo.md](scripts-agent_demo.md) |
+
+测试（65 个，纯 CPU、无需模型）：
+
+| 文件 | 验证什么 | 文档 |
 |---|---|---|
-| [types.py](../miniagent/types.py) | `Message` / `ToolCall` / `Step` / `AgentResult` | 全链路只用一种消息格式 |
-| [tools.py](../miniagent/tools.py) | `@tool` 装饰器 + JSON Schema 生成 + 执行边界 | 从函数签名和 docstring **自动推出** schema |
-| [parser.py](../miniagent/parser.py) | 把模型输出的文本解析成工具调用 | 兼容 4 种方言，坏输出不抛异常 |
-| [builtin_tools.py](../miniagent/builtin_tools.py) | 计算器、文本统计、沙箱文件读写 | 不用 `eval`，路径逃逸靠 `resolve` 而非字符串过滤 |
-| [backends.py](../miniagent/backends.py) | `complete(messages, tools) -> str` | 脚本 / 可调用 / 本地 mini-vllm / OpenAI 兼容 |
-| [agent.py](../miniagent/agent.py) | ReAct 循环 + 四条护栏 | 循环检测、步数上限、解析重试、工具错误回灌 |
+| [test_agent_tools.py](../tests/test_agent_tools.py) | schema 推导、参数校验、计算器安全、沙箱逃逸 | [tests-test_agent_tools.md](tests-test_agent_tools.md) |
+| [test_agent_parser.py](../tests/test_agent_parser.py) | 4 种方言 + 容错 + 从不抛异常 | [tests-test_agent_parser.md](tests-test_agent_parser.md) |
+| [test_agent_loop.py](../tests/test_agent_loop.py) | 控制流全部分支 + 四条护栏 | [tests-test_agent_loop.md](tests-test_agent_loop.md) |
+
+**建议阅读顺序**：`agent-00-index`（伪代码）→ `types` → `tools` → `parser` → `agent` → `backends` → `builtin_tools` → 三个测试。
 
 ---
 
