@@ -23,6 +23,16 @@ between a demo and something you would let near a user:
   only a couple of times.
 * **tool errors are observations, not crashes** -- a stack trace teaches the model
   nothing; ``ERROR: missing required argument(s) ['a']`` teaches it a lot.
+* **one modifying call per turn** -- two writes in one reply are two *blind* writes:
+  the model committed to both before seeing either result.  Extra writes come back
+  as a ``SKIPPED`` observation so the next turn can act on real state.
+* **a failed write cannot be talked away** -- if a file change did not happen, a
+  prose answer claiming it did is rejected, and the model is told the file is
+  unchanged.  Otherwise a 0.5B model will happily report success it never had.
+* **write, then read back** -- a file the run changed must be read before a final
+  answer is accepted: the answer has to be grounded in an observation of the disk,
+  not in the model's intention.  That is the only defence against a confident
+  description of a file that is not what the model thinks it is.
 """
 
 from __future__ import annotations
@@ -40,6 +50,7 @@ from miniagent.types import (
     Role,
     Step,
     StopReason,
+    ToolResult,
 )
 
 DEFAULT_SYSTEM_PROMPT = (
@@ -54,6 +65,17 @@ _REPAIR_HINT = (
     "or answer the user directly without calling a tool."
 )
 
+_WRITE_INCOMPLETE_HINT = (
+    "Your previous turn tried to change a file but the change did not happen ({detail}). "
+    "The file is unchanged. Do not claim a change you did not make: run the tool again "
+    "now, or answer saying what is still missing."
+)
+
+_READBACK_HINT = (
+    "You changed {paths} but never read {them} back. The file on disk is the only truth now: "
+    "call read_file and answer from what it actually shows, not from what you meant to write."
+)
+
 
 class Agent:
     def __init__(
@@ -66,6 +88,9 @@ class Agent:
         max_tokens: int = 512,
         max_parse_errors: int = 2,
         max_identical_calls: int = 2,
+        max_mutating_calls: int = 1,
+        max_write_retries: int = 2,
+        max_readback_retries: int = 2,
         on_step: Callable[[Step], None] | None = None,
     ) -> None:
         self.backend = backend
@@ -75,6 +100,9 @@ class Agent:
         self.max_tokens = max_tokens
         self.max_parse_errors = max_parse_errors
         self.max_identical_calls = max_identical_calls
+        self.max_mutating_calls = max_mutating_calls
+        self.max_write_retries = max_write_retries
+        self.max_readback_retries = max_readback_retries
         self.on_step = on_step
         self.trace: list[Step] = []
 
@@ -91,6 +119,20 @@ class Agent:
         if self.on_step is not None:
             self.on_step(step)
 
+    def _mutates(self, name: str) -> bool:
+        tool = self.tools.get(name)
+        return tool is not None and tool.mutates
+
+    @staticmethod
+    def _write_incomplete_hint(failed: list[ToolResult]) -> str:
+        detail = "; ".join(f"{r.name}: {r.error or r.content[:100]}" for r in failed)
+        return _WRITE_INCOMPLETE_HINT.format(detail=detail)
+
+    @staticmethod
+    def _readback_hint(paths: list[str]) -> str:
+        them = "it" if len(paths) == 1 else "them"
+        return _READBACK_HINT.format(paths=", ".join(paths), them=them)
+
     def _finish(self, **kwargs) -> AgentResult:
         return AgentResult(**kwargs)
 
@@ -104,6 +146,11 @@ class Agent:
         steps: list[Step] = []
         seen: Counter[str] = Counter()
         parse_errors = 0
+        failed_writes: list[ToolResult] = []
+        write_retries = 0
+        dirty: dict[str, None] = {}
+        """Paths changed by this run that have not been read back since."""
+        readback_retries = 0
 
         def result(answer: str, reason: StopReason) -> AgentResult:
             out = self._finish(
@@ -138,12 +185,39 @@ class Agent:
                 parse_errors=parsed.errors,
             )
 
-            # --- the model answered in prose: we are done
+            # --- the model answered in prose: done -- unless a file change it
+            # attempted never happened, or a file it changed was never read back.
+            # In both cases the prose describes state the loop cannot vouch for.
             if not parsed.calls and not parsed.errors:
                 step.duration_s = time.perf_counter() - step_started
+
+                if failed_writes and write_retries < self.max_write_retries:
+                    write_retries += 1
+                    step.notes.append("answer rejected: an attempted file change did not happen")
+                    steps.append(step)
+                    self._emit(step)
+                    messages.append(Message(Role.ASSISTANT, reply))
+                    messages.append(Message(Role.USER, self._write_incomplete_hint(failed_writes)))
+                    continue
+
+                if dirty and readback_retries < self.max_readback_retries:
+                    readback_retries += 1
+                    step.notes.append("answer rejected: a changed file was never read back")
+                    steps.append(step)
+                    self._emit(step)
+                    messages.append(Message(Role.ASSISTANT, reply))
+                    messages.append(Message(Role.USER, self._readback_hint(list(dirty))))
+                    continue
+
                 steps.append(step)
                 self._emit(step)
-                return result(parsed.text.strip() or reply.strip(), StopReason.FINAL_ANSWER)
+                if failed_writes:
+                    reason = StopReason.WRITE_INCOMPLETE
+                elif dirty:
+                    reason = StopReason.UNVERIFIED
+                else:
+                    reason = StopReason.FINAL_ANSWER
+                return result(parsed.text.strip() or reply.strip(), reason)
 
             # --- unusable tool call: hand the error back and let it retry
             if not parsed.calls:
@@ -164,11 +238,46 @@ class Agent:
 
             # --- execute every call, feed every result back
             messages.append(Message(Role.ASSISTANT, parsed.text, tool_calls=parsed.calls))
+            mutations = 0
             for call in parsed.calls:
+                tool = self.tools.get(call.name)
+                if tool is not None and tool.mutates:
+                    mutations += 1
+                    if mutations > self.max_mutating_calls:
+                        # The model planned this write before seeing the previous
+                        # result, so running it now is a blind write on stale state.
+                        skipped = ToolResult(
+                            call_id=call.call_id,
+                            name=call.name,
+                            ok=False,
+                            content=(
+                                f"SKIPPED: {call.name} changes files and only "
+                                f"{self.max_mutating_calls} such call(s) run per turn. "
+                                "Do it in the next turn, after reading the result above."
+                            ),
+                            error="skipped: too many modifying calls in one turn",
+                        )
+                        step.tool_results.append(skipped)
+                        messages.append(Message(Role.TOOL, skipped.to_observation(), name=skipped.name))
+                        continue
+
                 tool_result = self.tools.execute(call)
                 step.tool_results.append(tool_result)
                 messages.append(Message(Role.TOOL, tool_result.to_observation(), name=tool_result.name))
-                seen[call.key()] += 1
+                # Re-observing is not a loop: reading the same file again is exactly
+                # what the read-back rule asks for.  Only repeated *actions* count.
+                if tool is None or tool.reads is None:
+                    seen[call.key()] += 1
+
+            # what the next turn must not be allowed to talk away
+            failed_writes = [r for r in step.tool_results if not r.ok and self._mutates(r.name)]
+            for tool_result in step.tool_results:
+                for path in tool_result.reads:
+                    # a failed read discharges the duty too: "it is gone" is a fact
+                    dirty.pop(path, None)
+                if tool_result.ok:
+                    for path in tool_result.affects:
+                        dirty[path] = None
 
             step.duration_s = time.perf_counter() - step_started
             steps.append(step)

@@ -18,3 +18,4 @@ models/
 # local secrets / scratch
 ssh.key
 .env
+agent_workspace/

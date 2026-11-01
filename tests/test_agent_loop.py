@@ -10,13 +10,16 @@ from __future__ import annotations
 from miniagent.agent import Agent
 from miniagent.backends import CallableBackend, ScriptedBackend
 from miniagent.builtin_tools import calculator, text_stats
+from miniagent.tools import tool
 from miniagent.types import Role, StopReason
 
 
-def tool_call(name: str, **arguments) -> str:
+def tool_call(tool: str, **arguments) -> str:
+    """Build a Qwen-style call. The first parameter is ``tool``, not ``name``, so a
+    tool that itself takes an argument called ``name`` does not collide with it."""
     import json
 
-    payload = json.dumps({"name": name, "arguments": arguments})
+    payload = json.dumps({"name": tool, "arguments": arguments})
     return f"<tool_call>{payload}</tool_call>"
 
 
@@ -207,3 +210,172 @@ def test_on_step_callback_streams_the_trace():
     assert seen[0].has_tool_calls and not seen[1].has_tool_calls
     assert agent.trace == seen
     assert all(isinstance(s.summary(), str) for s in seen)
+
+
+# ------------------------------------------------------- serialising write calls
+
+
+def test_only_one_modifying_call_runs_per_turn():
+    """Two writes planned in one reply are two blind writes: the second is deferred.
+
+    The loop then refuses a final answer until the deferred change has actually
+    happened, so the scripted model comes back and makes it one turn later.
+    """
+    executed: list[str] = []
+
+    @tool(mutates=True)
+    def save(path: str) -> str:
+        """Pretend to write a file."""
+        executed.append(path)
+        return f"saved {path}"
+
+    backend = ScriptedBackend(
+        [
+            tool_call("save", path="a.txt") + tool_call("save", path="b.txt"),
+            tool_call("save", path="b.txt"),  # the deferred write, one turn later
+            "done",
+        ]
+    )
+    result = Agent(backend, [save]).run("write two files")
+
+    assert result.steps[0].tool_results[0].ok is True, "the first write runs"
+    assert result.steps[0].tool_results[1].ok is False, "the second one is deferred"
+    assert "SKIPPED" in result.steps[0].tool_results[1].content
+    assert executed == ["a.txt", "b.txt"]
+    assert result.stopped_reason is StopReason.FINAL_ANSWER
+
+
+def test_read_only_calls_are_not_serialised():
+    executed: list[str] = []
+
+    @tool
+    def peek(name: str) -> str:
+        """Read without changing anything."""
+        executed.append(name)
+        return name
+
+    backend = ScriptedBackend([tool_call("peek", name="a") + tool_call("peek", name="b"), "done"])
+    Agent(backend, [peek]).run("peek twice")
+
+    assert executed == ["a", "b"]
+
+
+def test_max_mutating_calls_can_be_raised_to_reproduce_the_bug():
+    executed: list[str] = []
+
+    @tool(mutates=True)
+    def save(path: str) -> str:
+        """Pretend to write a file."""
+        executed.append(path)
+        return f"saved {path}"
+
+    backend = ScriptedBackend([tool_call("save", path="a.txt") + tool_call("save", path="b.txt"), "done"])
+    Agent(backend, [save], max_mutating_calls=2).run("write two files")
+
+    assert executed == ["a.txt", "b.txt"]
+
+
+# ------------------------------------------------ answers must match the state
+
+
+def test_an_answer_that_claims_a_failed_write_is_rejected():
+    calls: list[str] = []
+
+    @tool(mutates=True)
+    def save(path: str) -> str:
+        """Pretend to write a file."""
+        calls.append(path)
+        if len(calls) == 1:
+            raise RuntimeError("disk is full")
+        return f"saved {path}"
+
+    backend = ScriptedBackend(
+        [
+            tool_call("save", path="a.txt"),  # fails
+            "I saved it.",  # a claim the loop knows is false
+            tool_call("save", path="a.txt"),  # retried, succeeds
+            "Saved.",
+        ]
+    )
+    result = Agent(backend, [save]).run("save it")
+
+    assert result.stopped_reason is StopReason.FINAL_ANSWER
+    assert calls == ["a.txt", "a.txt"]
+    assert result.steps[1].notes, "the rejected answer should be annotated"
+    nudge = [m.content for m in backend.requests[2] if m.role is Role.USER]
+    assert any("did not happen" in text for text in nudge)
+
+
+def test_a_write_that_is_never_retried_is_not_reported_as_success():
+    @tool(mutates=True)
+    def save(path: str) -> str:
+        """Pretend to write a file."""
+        raise RuntimeError("disk is full")
+
+    backend = ScriptedBackend([tool_call("save", path="a.txt"), "I saved it.", "I saved it.", "I saved it."])
+    result = Agent(backend, [save], max_write_retries=1, max_steps=6).run("save it")
+
+    assert result.stopped_reason is StopReason.WRITE_INCOMPLETE
+    assert not result.succeeded
+
+
+# ------------------------------------------------ write, then read back (grounding)
+
+
+def answering_model():
+    """A pair of fake tools: one changes a file, one reads it."""
+
+    @tool(mutates=True, affects="path")
+    def save(path: str) -> str:
+        """Pretend to write a file."""
+        return f"saved {path}"
+
+    @tool(reads="path")
+    def load(path: str) -> str:
+        """Pretend to read a file."""
+        return "buy milk\nwalk the dog\nwrite report\n"
+
+    return save, load
+
+
+def test_an_answer_about_a_changed_file_must_be_preceded_by_a_read_back():
+    save, load = answering_model()
+    backend = ScriptedBackend(
+        [
+            tool_call("save", path="todo.txt"),
+            "The second line is now 'walk the dog at 7am'.",  # never looked at the file
+            tool_call("load", path="todo.txt"),
+            "The file says: buy milk / walk the dog / write report.",
+        ]
+    )
+    result = Agent(backend, [save, load]).run("update todo.txt")
+
+    assert result.stopped_reason is StopReason.FINAL_ANSWER
+    assert result.steps[1].notes, "the ungrounded answer should be annotated"
+    nudge = [m.content for m in backend.requests[2] if m.role is Role.USER]
+    assert any("never read" in text for text in nudge)
+
+
+def test_a_write_never_read_back_is_unverified_not_success():
+    save, _ = answering_model()
+    backend = ScriptedBackend([tool_call("save", path="a.txt"), "done", "done", "done"])
+
+    result = Agent(backend, [save], max_readback_retries=1, max_steps=6).run("save it")
+
+    assert result.stopped_reason is StopReason.UNVERIFIED
+    assert not result.succeeded
+
+
+def test_reading_the_same_file_again_is_not_a_loop():
+    """The read-back rule demands re-reads, so they must not trip the loop guard."""
+
+    @tool(reads="path")
+    def load(path: str) -> str:
+        """Pretend to read a file."""
+        return "content"
+
+    replies = [tool_call("load", path="a.txt") for _ in range(5)] + ["done"]
+    result = Agent(ScriptedBackend(replies), [load], max_steps=8).run("read it")
+
+    assert result.stopped_reason is StopReason.FINAL_ANSWER
+    assert result.num_tool_calls == 5

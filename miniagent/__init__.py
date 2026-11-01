@@ -20,7 +20,14 @@ from miniagent.backends import (
     ScriptedBackend,
     build_backend,
 )
-from miniagent.builtin_tools import Sandbox, calculator, default_tools, make_file_tools, text_stats
+from miniagent.builtin_tools import (
+    Sandbox,
+    calculator,
+    default_tools,
+    make_file_tools,
+    make_write_tools,
+    text_stats,
+)
 from miniagent.parser import ParseResult, format_tool_call, parse
 from miniagent.tools import Tool, ToolRegistry, tool
 from miniagent.types import (
@@ -57,6 +64,7 @@ __all__ = [
     "default_tools",
     "format_tool_call",
     "make_file_tools",
+    "make_write_tools",
     "parse",
     "text_stats",
     "tool",

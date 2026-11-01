@@ -91,7 +91,8 @@ python scripts\bench_static_vs_continuous.py --num-requests 32 --batch-size 8 `
     --min-output 8 --max-output 512 --distribution heavy_tail
 python scripts\bench_prefix_caching.py --requests 6 --max-tokens 32
 python scripts\agent_demo.py                     # agent loop, scripted model
-python -m pytest tests\ -q                       # 106 tests
+python scripts\agent_files_demo.py               # real file writes + disk verification
+python -m pytest tests\ -q                       # 134 tests
 ```
 
 The numbers quoted above came from exactly these commands on the machine described

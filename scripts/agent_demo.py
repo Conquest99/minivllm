@@ -29,8 +29,8 @@ from miniagent.types import Role, Step  # noqa: E402
 QUESTION = "What is (23 * 7 + 11) / 4? Use the calculator."
 
 
-def tool_call(name: str, **arguments) -> str:
-    return "<tool_call>" + json.dumps({"name": name, "arguments": arguments}) + "</tool_call>"
+def tool_call(tool: str, **arguments) -> str:
+    return "<tool_call>" + json.dumps({"name": tool, "arguments": arguments}) + "</tool_call>"
 
 
 def scripted_backend() -> ScriptedBackend:

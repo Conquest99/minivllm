@@ -129,6 +129,21 @@ class Tool:
     parameters: dict[str, Any]
     func: Callable[..., Any]
     param_docs: dict[str, str] = field(default_factory=dict)
+    mutates: bool = False
+    """True when calling the tool changes state outside the conversation.
+
+    The agent uses this to serialise writes: a model that plans two file
+    modifications in one reply planned both *before* seeing either result, so the
+    second one is a blind write.  Read-only tools are never serialised.
+    """
+    affects: str | None = None
+    """Argument name holding the path this tool changes (``"path"`` for file tools).
+
+    The registry copies it into ``ToolResult.affects`` so the agent can demand that
+    a changed file be read back before it accepts a final answer.
+    """
+    reads: str | None = None
+    """Argument name holding the path this tool observes; that read clears the duty."""
 
     @property
     def required(self) -> list[str]:
@@ -161,8 +176,21 @@ class Tool:
         return self.func(**kwargs)
 
 
-def tool(fn: Callable[..., Any] | None = None, *, name: str | None = None):
+def tool(
+    fn: Callable[..., Any] | None = None,
+    *,
+    name: str | None = None,
+    mutates: bool = False,
+    affects: str | None = None,
+    reads: str | None = None,
+):
     """Turn a function into a :class:`Tool` by introspecting it.
+
+    ``mutates=True`` marks a tool that changes state outside the conversation; the
+    agent then runs at most one such call per turn, so the model has to see the
+    result before it commits to the next change.  ``affects="path"`` additionally
+    says *which* argument names what was changed, which lets the agent require a
+    read-back before it believes the answer.
 
     >>> @tool
     ... def add(a: int, b: int) -> int:
@@ -194,6 +222,9 @@ def tool(fn: Callable[..., Any] | None = None, *, name: str | None = None):
             parameters={"type": "object", "properties": properties, "required": required},
             func=func,
             param_docs=docs,
+            mutates=mutates,
+            affects=affects,
+            reads=reads,
         )
 
     return wrap(fn) if fn is not None else wrap
@@ -232,9 +263,17 @@ class ToolRegistry:
     def schemas(self) -> list[dict[str, Any]]:
         return [t.to_schema() for t in self._tools.values()]
 
+    @staticmethod
+    def _declared_paths(tool: Tool | None, call: ToolCall, attribute: str) -> list[str]:
+        """The path a call names in the argument that ``tool.<attribute>`` declares."""
+        key = getattr(tool, attribute, None) if tool is not None else None
+        value = call.arguments.get(key) if isinstance(key, str) else None
+        return [value] if isinstance(value, str) and value else []
+
     def execute(self, call: ToolCall) -> ToolResult:
         """Run one call.  Never raises: every failure becomes ``ok=False``."""
         started = time.perf_counter()
+        t = self.get(call.name)
 
         def fail(message: str) -> ToolResult:
             return ToolResult(
@@ -244,9 +283,11 @@ class ToolRegistry:
                 content=f"ERROR: {message}",
                 error=message,
                 duration_s=time.perf_counter() - started,
+                # a read that failed still counts as having looked: "it is gone" is
+                # an observation, and it must be able to discharge a pending read-back
+                reads=self._declared_paths(t, call, "reads"),
             )
 
-        t = self.get(call.name)
         if t is None:
             return fail(f"unknown tool {call.name!r}; available: {', '.join(self.names) or '(none)'}")
 
@@ -265,4 +306,6 @@ class ToolRegistry:
             ok=True,
             content=str(value),
             duration_s=time.perf_counter() - started,
+            affects=self._declared_paths(t, call, "affects"),
+            reads=self._declared_paths(t, call, "reads"),
         )

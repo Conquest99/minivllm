@@ -69,7 +69,7 @@ miniagent/tests-*.md       控制流全部分支 + 安全边界
 | | 文件数 | 行数 |
 |---|---:|---:|
 | `docs/minivllm/` | 24 | 6,767 |
-| `docs/miniagent/` | 11 | 3,380 |
-| 合计 | 35 | 10,147 |
+| `docs/miniagent/` | 12 | 3,737 |
+| 合计 | 36 | 10,504 |
 
 对应源代码：`minivllm/` + `scripts/` + `tests/` 共 21 个文件，`miniagent/` 7 个文件，全部有对应文档。

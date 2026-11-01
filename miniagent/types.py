@@ -52,6 +52,10 @@ class ToolResult:
     content: str
     error: str | None = None
     duration_s: float = 0.0
+    affects: list[str] = field(default_factory=list)
+    """Paths this call changed.  Filled in by the registry, not by the tool."""
+    reads: list[str] = field(default_factory=list)
+    """Paths this call observed -- what discharges the read-back duty."""
 
     def to_observation(self) -> str:
         """What the model is allowed to see.
@@ -101,6 +105,10 @@ class StopReason(str, Enum):
     LOOP_DETECTED = "loop_detected"
     TOO_MANY_ERRORS = "too_many_errors"
     BACKEND_ERROR = "backend_error"
+    WRITE_INCOMPLETE = "write_incomplete"
+    """The model answered while a file change it attempted never happened."""
+    UNVERIFIED = "unverified"
+    """The answer came before the model read back a file it had changed."""
 
 
 @dataclass
@@ -112,6 +120,8 @@ class Step:
     tool_calls: list[ToolCall] = field(default_factory=list)
     tool_results: list[ToolResult] = field(default_factory=list)
     parse_errors: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+    """Loop-level remarks about this step, e.g. why an answer was rejected."""
     duration_s: float = 0.0
 
     @property
@@ -121,6 +131,8 @@ class Step:
     def summary(self) -> str:
         if self.parse_errors:
             return f"step {self.index}: {len(self.parse_errors)} parse error(s)"
+        if self.notes:
+            return f"step {self.index}: {self.notes[0]}"
         if not self.tool_calls:
             return f"step {self.index}: final answer"
         parts = []

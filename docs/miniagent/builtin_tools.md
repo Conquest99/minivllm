@@ -245,6 +245,102 @@ def default_tools(workspace: str | Path | None = None) -> list[Tool]:
 
 ---
 
+## 6. 写入工具：`make_write_tools`
+
+读工具和写工具**故意分成两个工厂**：
+
+```python
+def default_tools(workspace=None) -> list[Tool]:
+    """The tool set used by the demo: calculator + text stats + sandboxed files.
+
+    Read-only on purpose: ``default_tools`` is what every demo and test starts from,
+    so it must not be able to destroy anything.  Add :func:`make_write_tools` when a
+    task genuinely needs to write.
+    """
+    return [calculator, text_stats, *make_file_tools(Sandbox(workspace) if workspace else None)]
+```
+
+**读是默认能力，写是要显式授出的能力。** 这个分层比「给所有工具加个 `read_only` 开关」更可靠，因为默认值就是安全的那个。
+
+四个写工具：`write_file`（overwrite/append）、`write_lines`（数组逐行写）、`edit_file`（字符串替换）、`delete_file`。
+
+`write_lines` 单列出来是因为**小模型写多行字符串必错**：JSON 里的 `"a\nb"` 要转义，而 `["a", "b"]` 不需要。给它一个不用转义的形状，成功率立刻不同。
+
+### 三个共同约定
+
+```python
+@tool(name="write_file", mutates=True, affects="path")
+```
+
+* **`mutates=True`**：让 `Agent` 能识别「修改类调用」，进而执行「一轮一次」的预算（见 [agent.md](agent.md)）。没有这个标记，护栏无从判断。
+* **`affects="path"`**：告诉 agent 这次调用污染了哪个文件，从而产生「改完必须读回来」的义务。
+* **回执不是文件内容**：模型知道自己写了什么，把全文再塞回 observation 纯属浪费上下文。返回一行摘要即可。
+
+### `check_writable`：改之前必须读过
+
+```python
+def check_writable(self, path: Path, tool: str) -> None:
+    """Refuse to mutate a file this run has not read, or has seen change."""
+    if not path.is_file():
+        return  # creating something new is always fine
+    if path not in self._seen:
+        raise PermissionError(
+            f"{tool} refuses to modify {path.name}: it already exists and this run has "
+            "not read it. Call read_file first, or pick a name that does not exist yet."
+        )
+    if self._digest(path) != self._seen[path]:
+        raise PermissionError(
+            f"{tool} refuses to modify {path.name}: it changed after you read it. "
+            "Call read_file again to see the current content."
+        )
+```
+
+两条规则，各自防一类事故：
+
+| 检查 | 防的是 |
+|---|---|
+| 没读过 → 拒绝 | 模型对着**想象中**的文件内容改（它从没看过磁盘） |
+| 读过后文件变了 → 拒绝 | **陈旧写入**：读完到改之间文件被别的进程改了 |
+
+第二条用 `sha256` 摘要比较（不是 mtime，也不是大小），因为时间戳分辨率和大小都可能骗人。
+
+「创建新文件永远允许」这一条很重要：否则模型没法从零开始建文件。
+
+### `edit_file` 的回执为什么要带行号
+
+这是踩过的坑。原来它只返回：
+
+```
+edited todo.txt (3 lines, 46 bytes)
+```
+
+这个回执**无法区分「我改了第 1 行」和「我改了第 2 行」**——而当任务是「把第二行改掉」时，这个区别就是全部。0.5B 模型拿 `buy milk`（第一行）当锚点去替换，工具忠实执行，回执只说「改了，3 行 46 字节」，模型于是认为完成了。
+
+现在返回：
+
+```
+edited todo.txt (line 1: 'buy milk' -> 'walk the dog at 7am'; 3 lines, 46 bytes)
+```
+
+行号怎么算的：
+
+```python
+def _change_summary(before: str, old: str, new: str) -> str:
+    index = before.index(old)
+    first = before.count("\n", 0, index) + 1
+    span = old.count("\n") + 1
+    where = f"line {first}" if span == 1 else f"lines {first}-{first + span - 1}"
+    return f"{where}: {_preview(old)!r} -> {_preview(new)!r}"
+```
+
+* `before.count("\n", 0, index) + 1` —— 数「匹配位置之前有多少个换行」，就是 1-based 行号。
+* `span` 处理多行替换：替换两行时报告 `lines 2-3`。
+* `_preview` 截断长片段（48 字符 + `…`），`!r` 让换行显示成 `\n`。
+
+**注意：这只让错误变「可见」，不让它变「不可能」。** 0.5B 实测仍然会忽略 `line 1` 这个提示。要根治得给它行号化的读取 + `replace_line(path, line, text)`，那样模型只需要输出 `line=2`，不用抄第二行的文字。本项目没做，因为在 0.5B 上收益有限，而 `old`-锚点对并发/健壮性更友好。
+
+---
+
 ## 用到的 Python 特性
 
 | 特性 | 说明 |
@@ -257,6 +353,9 @@ def default_tools(workspace: str | Path | None = None) -> list[Tool]:
 | 闭包捕获 | 把沙箱藏进工具，不进签名 |
 | `str.splitlines()` | 比 `split("\n")` 正确处理 `\r\n` |
 | `errors="replace"` | 解码失败不抛异常 |
+| `str.count(sub, start, end)` | 数区间内的换行 → 1-based 行号 |
+| `hashlib.sha256` | 比 mtime 可靠的内容变更检测 |
+| `open(..., newline="\n")` | 强制 LF，避开平台换行差异 |
 
 ---
 
