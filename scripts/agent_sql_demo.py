@@ -41,6 +41,7 @@ what stops a determined prompt-injection.
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import os
 import sqlite3
@@ -249,6 +250,27 @@ def explore(sandbox: SQLSandbox, *, max_tables: int, columns: int, sample: int) 
                 print(f"   sample failed: {type(exc).__name__}: {exc}")
 
 
+def _parse(parser: argparse.ArgumentParser) -> argparse.Namespace:
+    """Parse, but turn an unknown flag into a "did you mean" instead of a bare refusal.
+
+    Abbreviations are off on purpose (a typo must not silently take effect), so the
+    least we can do is name the flag the caller probably wanted.
+    """
+    args, unknown = parser.parse_known_args()
+    if not unknown:
+        return args
+    known = sorted(parser._option_string_actions)  # noqa: SLF001 - argparse has no public list
+    for token in unknown:
+        name = token.split("=", 1)[0]
+        if not name.startswith("--"):
+            continue
+        hit = difflib.get_close_matches(name, known, n=1, cutoff=0.7)
+        if hit:
+            parser.error(f"unrecognized argument {name!r}; did you mean {hit[0]!r}?")
+    parser.error(f"unrecognized arguments: {' '.join(unknown)}")
+    raise AssertionError("unreachable")  # parser.error exits
+
+
 def main() -> None:
     # allow_abbrev=False: with the default, `--max-row 1` silently abbreviates to
     # --max-rows and a typo takes effect without complaint.  Same rule as everywhere
@@ -305,7 +327,7 @@ def main() -> None:
         action="store_true",
         help="do not inject the domain glossary; useful to see the model fail without it",
     )
-    args = parser.parse_args()
+    args = _parse(parser)
 
     if args.config_json:
         import json as _json
