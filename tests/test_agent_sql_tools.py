@@ -362,6 +362,51 @@ def test_errors_from_sql_tools_reach_the_model_as_observations(box):
     assert "not a valid table name" in result.content
 
 
+def test_values_that_pack_two_conditions_are_refused(box):
+    """``HS > 25 AND HS < 28`` in one element is the small-model mistake.
+
+    Bound as a parameter it matches nothing, so the run reports "0 rows" -- which is
+    indistinguishable from a real empty result.  Refusing it is the whole point.
+    """
+    with pytest.raises(SQLPolicyError, match="ONE condition"):
+        box.build_select("orders", None, ["amount > 25 AND amount < 28"], "", 10)
+    with pytest.raises(SQLPolicyError, match="ONE condition"):
+        box.build_select("orders", None, ["amount>25 or amount<28"], "", 10)
+    with pytest.raises(SQLPolicyError, match="ONE condition"):
+        box.build_select("orders", None, ["state = 'paid' AND amount > 30"], "", 10)
+
+
+def test_a_packed_condition_is_refused_before_it_reaches_the_database(box):
+    """The refused value never becomes SQL, so the table is untouched by definition."""
+    before = box.execute("SELECT COUNT(*) FROM orders", [])[1]
+    with pytest.raises(SQLPolicyError):
+        box.build_select("orders", None, ["amount > 25 AND amount < 28"], "", 10)
+    assert box.execute("SELECT COUNT(*) FROM orders", [])[1] == before
+
+
+def test_a_quoted_value_may_still_contain_sql_lookalikes(box):
+    sql, params = box.build_select("users", None, ["name = 'a AND b'"], "", 10)
+    assert sql.count("?") == 1
+    assert params == ["a AND b"]
+
+
+def test_sql_keywords_are_not_accepted_as_columns(box):
+    with pytest.raises(SQLPolicyError, match="SQL keyword"):
+        box.build_select("users", ["asc"], [], "", 10)
+    with pytest.raises(SQLPolicyError, match="SQL keyword"):
+        box.build_select("users", None, [], "from", 10)
+
+
+def test_a_direction_word_as_order_by_is_explained(box):
+    with pytest.raises(SQLPolicyError, match="direction, not a column"):
+        box.build_select("users", None, [], "ASC", 10)
+
+
+def test_sql_keywords_are_not_accepted_as_tables(box):
+    with pytest.raises(SQLPolicyError, match="SQL keyword"):
+        box.build_select("select", None, [], "", 10)
+
+
 def test_the_queries_executed_are_recorded_as_an_audit_trail(box):
     tools_of(box)["query_table"].func("users", where=["status = 'active'"])
     assert any('FROM "users"' in q for q in box.queries)

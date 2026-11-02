@@ -216,7 +216,11 @@ def execute(self, call: ToolCall) -> ToolResult:
     def fail(message: str) -> ToolResult:
         return ToolResult(
             call_id=call.call_id, name=call.name, ok=False,
-            content=f"ERROR: {message}", error=message,
+            content=(
+                f"ERROR: {message}\n"
+                f"Nothing was changed. Call {call.name} again with corrected arguments."
+            ),
+            error=message,
             duration_s=time.perf_counter() - started,
         )
 
@@ -257,6 +261,12 @@ def execute(self, call: ToolCall) -> ToolResult:
 * `error` 是**给程序用的**（统计、断言、日志）
 
 一个字段两种用途会打架，所以分两个。
+
+### 为什么 `content` 里还要多一句「可以重试」
+
+只给错误，0.5B 这类小模型常见的反应是**道歉然后收工**——它读懂了「出错了」，却没读出「这不是终点」。加一句 `Nothing was changed. Call <tool> again with corrected arguments.` 明确告诉它两件事：状态没被破坏（重试安全）、下一步动作是重试同一个工具。
+
+这不是提示词工程的花招，而是**错误消息本身的一部分**：一条好的错误消息要说清「哪里错了」「有没有副作用」「接下来能做什么」。
 
 ---
 

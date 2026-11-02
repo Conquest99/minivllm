@@ -174,6 +174,78 @@ sql, params = box.build_select("users", None, ["name = 'x' OR 1=1"], "", 10)
 
 断言「它应该抛异常」等于断言了错的东西：**重点不是拒绝，而是无法执行**。现在的测试叫 `test_sql_lookalikes_inside_a_value_are_harmless`，验证的是「一个占位符 + 零行结果」。
 
+### 静默比报错危险：两种「0 行」
+
+真正的问题出在 0.5B 跑真实问题时。它给出的调用是：
+
+```python
+query_table({"table": "dba04_cy4", "columns": ["HS"],
+             "where": ["HS > 25 AND HS < 28"], "order_by": "ASC"})
+```
+
+两个错误，一个显眼、一个隐蔽：
+
+* `order_by="ASC"` —— 把**方向**当成了列名；
+* `where=["HS > 25 AND HS < 28"]` —— 两个条件被塞进**一个**元素。
+
+工具当时照单全收，生成：
+
+```sql
+SELECT "HS" FROM "dba04_cy4" WHERE "HS" > ? ORDER BY "ASC" ASC LIMIT 20
+-- params = ['25 AND HS < 28']
+```
+
+sqlite 把 `"ASC"` 当成**字符串常量**来排序（等于不排序），把 `'25 AND HS < 28'` 当成普通文本去和数字比 → **0 行**。模型看到「0 行」，于是认真地回答「没有符合条件的记录」。
+
+**这是最坏的一种错：0 行是一个合法答案。** 没有任何东西提示你去复核。
+
+MySQL 在同样两个地方会直接报错，sqlite 不会。所以这项检查只能由我们自己承担——这就是 `_PACKED_CONDITION` 和 `_RESERVED_WORDS` 存在的理由。
+
+#### 拒绝要窄，否则会拒掉合法查询
+
+第一版正则写成 `\b(and|or|not|select|union|from|where|like|between|is|in)\b|[<>=!()]`，结果几乎一切值都被拒——包括上面那个合法的 `name = 'x' OR 1=1`，也就是把刚讲对的道理又推翻了一遍。
+
+区分「打包了两个条件」和「值里恰好像 SQL」的关键是：**`and`/`or` 后面跟的是不是另一个列名**。
+
+```python
+_PACKED_CONDITION = re.compile(
+    r"\b(?:and|or)\b\s+[^\W\d]\w*\s*(?:[<>=!]|\bnot\b|\bis\b|\blike\b|\bin\b|\bbetween\b)",
+    re.IGNORECASE,
+)
+```
+
+* `25 AND HS < 28` → `AND HS <` 命中，拒绝；
+* `'x' OR 1=1` → `or` 后面是 `1`，不是标识符，放过（它本来就无害）。
+
+另外 `_is_quoted` 放行整体被引号包住的值：`name = 'a AND b < c'` 是在**搜索这段文字**，不是在写条件，必须能过。
+
+同时 `_RESERVED_WORDS` 让 `_check_table` / `_check_column` 直接拒绝 `asc`、`from` 这类词；`_order` 对纯方向词给一句专用提示（“order_by 'ASC' is a direction, not a column. Name the column first: 'NY desc'”），而不是含糊的「读不懂」。
+
+#### 错误观察里要带一句「可以重试」
+
+`ToolRegistry.execute` 的失败回执现在长这样：
+
+```text
+ERROR: SQLPolicyError: condition 'HS > 25 AND HS < 28' packs more than one condition into the value. ...
+Nothing was changed. Call query_table again with corrected arguments.
+```
+
+第二行是给弱模型看的。只给错误，0.5B 会道歉然后收工；说了「什么都没改，可以重来」，它至少会再试一次。
+
+#### 结果：0.5B 仍然不会自我纠正
+
+实测（`--backend local`）三种状态：
+
+| 版本 | 模型行为 | 你看到的结果 |
+|---|---|---|
+| 修复前 | 调用被接受 | 「0 行」——**自信的错误答案** |
+| 加拒绝 | 一次失败 → 道歉收工 | `no answer`，循环退出码 1 |
+| 再加提示 | 三次重复同一调用 → 被 `loop_detected` 停下 | `no answer: loop_detected, and no statement ever ran` |
+
+`order_by` 在加了 docstring 提示后修对了，`where` 依然修不对——「把『大于 25 小于 28』拆成两个条件」超出一个 0.5B 模型的能力，不是提示词问题。
+
+**护栏的价值不在于让弱模型变强，而在于不让它用一个看起来完全正常的答案骗过你。** 换成 7B 以上、或给一个 few-shot 例子，才谈得上自我纠正。
+
 ---
 
 ## 4. 有界的代价
@@ -293,6 +365,8 @@ Run: uv pip install --python .venv\Scripts\python.exe pymysql
 * 「sqlite 测过就等于 MySQL 也对」——语句构建逻辑一样，但 `information_schema` 路径只能在真服务器上验。
 * 「`text` 列也能数值比较」——MySQL 会隐式转换，但 `'99' > '100'` 为真。查之前先看类型。
 * 「`box.queries` 是调试用的」——它同时是审计记录，出问题第一眼看这个。
+* 「工具应该尽量宽容，能把模型的意思猜出来」——`where=["HS > 25 AND HS < 28"]` 猜不出来只能猜错。**猜错得到的 0 行比报错危险得多**：0 行是合法答案，你会当成结论。
+* 「加了护栏，弱模型就能自救了」——不会。护栏只保证**你不会被假答案骗**，自纠正能力是模型本身的事。
 
 ---
 
@@ -302,3 +376,5 @@ Run: uv pip install --python .venv\Scripts\python.exe pymysql
 2. 去掉 `_quote`（直接拼名字），跑同一个测试，看 `daa05-cy2` 那类名字如何变成语法错误。
 3. 把 `force_read_only_session` 设成 `False`，跑 `test_the_server_refuses_a_write_even_if_one_somehow_got_through`，确认它失败——**这就是「只有构建器保护」和「再加一层服务端保护」的区别**。
 4. 给 `SQLPolicy` 加 `max_seconds`，用 MySQL 的 `SET SESSION MAX_EXECUTION_TIME` 实现查询超时，然后想清楚 sqlite 上该怎么模拟。
+5. **把 `_PACKED_CONDITION` 删掉，跑 `--backend local`，看模型怎样用一个「0 行」的答案骗过你。** 再把它加回来对比。
+6. 试着自己修 0.5B：加一条 few-shot 例子进 `DOMAIN_NOTES`，看它能不能一次写对。写不对就退一步想——真上生产，这个活该交给模型还是交给工具？

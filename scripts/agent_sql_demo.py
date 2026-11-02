@@ -1,20 +1,38 @@
-"""Let the agent explore a database with the read-only SQL tools.
+"""Let the agent answer a question about a database with the read-only SQL tools.
 
     python scripts\\agent_sql_demo.py                  # sqlite: builds a sample DB, no server
     python scripts\\agent_sql_demo.py --backend local   # same, with the local 0.5B model
     python scripts\\agent_sql_demo.py --mysql           # a real MySQL server (needs pymysql)
 
-The sqlite mode is the one to read first: it creates ``agent_workspace/sqldemo.db``
-with a tiny shop schema, so the whole thing runs offline and repeatably.  It is also
-how the SQL tools are tested -- ``sqlite3`` and ``pymysql`` are both DB-API 2.0, so
-the same policy code runs against either.
+The example task is a real one from a Chinese oilfield monthly-report database::
+
+    查询四厂油井月报表中含水大于25小于28的行
+
+which is only answerable if you know three conventions, so they are injected into the
+system prompt (see ``DOMAIN_NOTES``):
+
+    油井月报 = dba04        四厂 = 后缀 _cy4  ->  dba04_cy4        含水 = HS
+
+That is the whole point of the demo: **the agent is not smarter than its glossary.**
+With the notes it can pick the right table out of 59; without them (``--no-domain-notes``)
+it has to guess between ``dba04``, ``dba04_cy1`` and ``dba04_cy4``, and a wrong guess
+still returns a plausible-looking number of rows.
+
+The sqlite mode builds ``agent_workspace/sqldemo.db`` with a miniature ``dba04_cy4``
+plus two decoy tables, so the flow runs offline and repeatably.  It is also how the
+tools are tested: ``sqlite3`` and ``pymysql`` are both DB-API 2.0, so the same policy
+code runs against either.
+
+Nothing here can write.  The sandbox puts the session itself into read-only mode and
+verifies it, every statement is built from validated identifiers plus bound values,
+and ``statements executed`` at the end is the audit trail.
 
 MySQL credentials come from flags or the environment::
 
     $env:MINIAGENT_MYSQL_HOST = "127.0.0.1"
     $env:MINIAGENT_MYSQL_USER = "agent"
     $env:MINIAGENT_MYSQL_PASSWORD = "..."
-    $env:MINIAGENT_MYSQL_DB = "shop"
+    $env:MINIAGENT_MYSQL_DB = "data"
 
 Grant that account SELECT only.  The policy below stops accidents; privileges are
 what stops a determined prompt-injection.
@@ -36,27 +54,69 @@ sys.path.insert(0, str(ROOT))
 from miniagent import DEFAULT_SYSTEM_PROMPT, Agent, SQLPolicy, SQLSandbox  # noqa: E402
 from miniagent.backends import CallableBackend, ScriptedBackend  # noqa: E402
 from miniagent.sql_tools import make_sql_tools, mysql_connector, sqlite_connector  # noqa: E402
-from miniagent.types import Role, Step  # noqa: E402
+from miniagent.types import AgentResult, Role, Step  # noqa: E402
 
-QUESTION = "Which customers have paid orders worth more than 50? Give me their names and the amounts."
+QUESTION = "查询四厂油井月报表中含水大于25小于28的行"
+
+DOMAIN_NOTES = """\
+领域知识（中文油田月报库，必须使用这些约定）:
+- 油井月报的主体表叫 `dba04`，按"厂"分表存储。
+- "厂"用后缀表示：四厂 -> `_cy4`。所以"四厂油井月报表"就是 `dba04_cy4`。
+  不要查裸的 `dba04`（那是全厂合并/其他用途），也不要查 `dba04_cy1`。
+- 含水字段名是 `HS`，单位是百分数。
+- 井号字段是 `JH`，年月字段是 `NY`（形如 198206）。
+- `HS` 为 NULL 表示当月没有测量数据，范围条件会自动排除这些行。
+
+Domain notes (Chinese oilfield monthly report database; these conventions are required):
+- The oil-well monthly report lives in `dba04`, sharded by plant.
+- The plant is a suffix: plant 4 -> `_cy4`. "四厂油井月报表" is therefore `dba04_cy4`,
+  not plain `dba04` and not `dba04_cy1`.
+- Water cut is column `HS`, expressed as a percentage.
+- Well name is `JH`; year-month is `NY` (for example 198206).
+- A NULL `HS` means no measurement that month; range filters drop those rows.
+
+调用形状（照抄结构，不要照抄数值）:
+
+    query_table(table="dba04_cy4", where=["HS > 25", "HS < 28"], order_by="NY desc", limit=20)
+
+`where` 是列表，一个元素一个条件，不要写成 ["HS > 25 AND HS < 28"]；
+`order_by` 是列名（可加 desc），不要只写 "ASC"。
+
+Call shape (copy the structure, not the values):
+
+    query_table(table="dba04_cy4", where=["HS > 25", "HS < 28"], order_by="NY desc", limit=20)
+
+`where` is a list with one condition per element; never ["HS > 25 AND HS < 28"].
+`order_by` is a column name, optionally with desc; never just "ASC".
+"""
+
+EXPECTED_MYSQL_COUNT = 7194
+"""Rows matching HS > 25 AND HS < 28 in dba04_cy4 on the reference server (2,173,779 rows).
+Handy as ``--expect-count 7194`` when you want the demo to check itself."""
 
 SAMPLE_SCHEMA = """
-CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT, city TEXT, joined TEXT);
-CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id INTEGER, amount REAL, status TEXT);
-INSERT INTO customers (name, city, joined) VALUES
-    ('alice', 'Berlin',  '2024-01-11'),
-    ('bob',   'Lisbon',  '2024-02-03'),
-    ('carol', 'Berlin',  '2024-03-19'),
-    ('dave',  'Madrid',  '2024-04-02');
-INSERT INTO orders (customer_id, amount, status) VALUES
-    (1, 120.0, 'paid'),
-    (1,  15.5, 'paid'),
-    (2,  99.0, 'open'),
-    (2,  75.0, 'paid'),
-    (3,  40.0, 'paid'),
-    (4, 210.0, 'refunded'),
-    (4,  88.0, 'paid');
+-- mirrors the shape of the real dba04_cy4 (53 columns there; four are enough here)
+CREATE TABLE dba04_cy4 (JH TEXT, NY TEXT, HS REAL, CYFS TEXT);
+INSERT INTO dba04_cy4 (JH, NY, HS, CYFS) VALUES
+    ('X7-4-46', '198206', 26.0, '1B2'),
+    ('X7-4-46', '198207', 27.5, '1B2'),
+    ('X7-4-46', '198208', 28.0, '1B2'),   -- boundary: excluded
+    ('X7-4-47', '198206', 25.0, '1B2'),   -- boundary: excluded
+    ('X7-4-47', '198207', 30.0, '1B2'),
+    ('X7-4-48', '198206', 21.0, '1B2'),
+    ('X7-4-48', '198207', 25.5, '1B2'),
+    ('X7-4-49', '198206', NULL, '1B2'),   -- no measurement: excluded
+    ('N6-D3-P2126', '198206', 26.5, '2A1'),
+    ('N6-D3-P2126', '198207', 24.0, '2A1');
+-- a decoy table: the "plant 1" shard and a bare dba04
+CREATE TABLE dba04_cy1 (JH TEXT, NY TEXT, HS REAL);
+INSERT INTO dba04_cy1 (JH, NY, HS) VALUES ('X7-4-46', '198206', 26.0);
+CREATE TABLE dba04 (JH TEXT, NY TEXT, HS REAL);
+INSERT INTO dba04 (JH, NY, HS) VALUES ('X7-4-46', '198206', 26.0);
 """
+
+SAMPLE_EXPECTED = 4
+"""Rows matching HS > 25 AND HS < 28 in the sqlite sample above."""
 
 
 def tool_call(tool: str, **arguments) -> str:
@@ -75,25 +135,28 @@ def build_sample_db(path: Path) -> Path:
 
 
 def scripted_backend() -> ScriptedBackend:
-    """A canned model that explores the schema the way a careful one would.
+    """A canned model that uses the glossary the way a careful one would.
 
-    It lists tables, describes the two it needs, counts before selecting (cheap
-    sanity check), then queries with a join-free filter and reads nothing else.
+    The interesting part is step 0: it does *not* trust a guessed name.  It lists
+    the tables, sees `dba04`, `dba04_cy1` and `dba04_cy4` side by side, and only then
+    picks the one the suffix rule points at.  Counting before selecting is the cheap
+    way to spot a wrong table: a plant-4 monthly report cannot have 21 rows.
     """
     return ScriptedBackend(
         [
             tool_call("list_tables"),
-            tool_call("describe_table", table="customers"),
-            tool_call("describe_table", table="orders"),
+            tool_call("describe_table", table="dba04_cy4"),
+            tool_call("count_rows", table="dba04_cy4", where=["HS > 25", "HS < 28"]),
             tool_call(
                 "query_table",
-                table="orders",
-                columns=["customer_id", "amount"],
-                where=["status = 'paid'", "amount > 50"],
-                order_by="amount desc",
+                table="dba04_cy4",
+                columns=["JH", "NY", "HS"],
+                where=["HS > 25", "HS < 28"],
+                order_by="NY",
+                limit=20,
             ),
-            tool_call("query_table", table="customers", columns=["id", "name"], where=["id in (1, 2, 4)"]),
-            "alice paid 120.0, bob paid 75.0 and dave paid 88.0 -- all above 50.",
+            "四厂油井月报表（dba04_cy4）中含水在 25 到 28 之间的记录如下，"
+            "表里共匹配到若干行，上面列出了前 20 行。",
         ]
     )
 
@@ -106,11 +169,11 @@ def scripted_backend_attacking() -> CallableBackend:
     """
 
     def decide(messages):
-        observations = [m.content for m in messages if m.role is Role.TOOL]
+        observations = [m.content for m in messages if m.role == Role.TOOL]
         attempts = [
-            ("query_table", {"table": "customers; DROP TABLE customers"}),
-            ("query_table", {"table": "customers", "where": ["1=1"]}),
-            ("query_table", {"table": "customers", "columns": ["name; DROP TABLE x"]}),
+            ("query_table", {"table": "dba04_cy4; DROP TABLE dba04_cy4"}),
+            ("query_table", {"table": "dba04_cy4", "where": ["1=1"]}),
+            ("query_table", {"table": "dba04_cy4", "columns": ["HS; DROP TABLE x"]}),
         ]
         if len(observations) < len(attempts):
             name, args = attempts[len(observations)]
@@ -223,6 +286,22 @@ def main() -> None:
     parser.add_argument("--max-tables", type=int, default=10, help="cap for --explore")
     parser.add_argument("--explore-columns", type=int, default=12, help="columns shown per table")
     parser.add_argument("--sample", type=int, default=2, help="sample rows per table (0 = none)")
+    parser.add_argument(
+        "--expect-count",
+        type=int,
+        default=-1,
+        help="after the run, compare COUNT(*) of the target table against this number",
+    )
+    parser.add_argument(
+        "--target-table",
+        default="dba04_cy4",
+        help="table used by --expect-count (and by the end-of-run summary)",
+    )
+    parser.add_argument(
+        "--no-domain-notes",
+        action="store_true",
+        help="do not inject the domain glossary; useful to see the model fail without it",
+    )
     args = parser.parse_args()
 
     if args.config_json:
@@ -280,13 +359,18 @@ def main() -> None:
             sandbox.close()
         return
 
+    system_prompt = DEFAULT_SYSTEM_PROMPT + (
+        " You can inspect a database with read-only tools. List the tables, read the"
+        " columns, then use query_table with structured filters instead of writing SQL."
+        " Never modify anything: every tool is read-only by design."
+    )
+    if not args.no_domain_notes:
+        system_prompt += "\n\n" + DOMAIN_NOTES
+
     agent = Agent(
         backend,
         tools,
-        system_prompt=(
-            DEFAULT_SYSTEM_PROMPT + " You can inspect a database with read-only tools. List the tables, read"
-            " the columns, then use query_table with filters instead of writing SQL."
-        ),
+        system_prompt=system_prompt,
         max_steps=args.max_steps,
         on_step=print_step,
     )
@@ -294,6 +378,7 @@ def main() -> None:
     print(f"database : {label}")
     print(f"backend  : {args.backend}")
     print(f"policy   : max_rows={policy.max_rows} allowlist={sorted(allowed) or 'any'}")
+    print(f"domain   : {'injected' if not args.no_domain_notes else 'NOT injected'}")
     print(f"tools    : {agent.tools.names}")
     print(f"question : {args.question}")
 
@@ -308,10 +393,42 @@ def main() -> None:
     print(f"\nstatements executed ({len(sandbox.queries)}):")
     for sql in sandbox.queries:
         print(f"  {sql}")
+    executed = len(sandbox.queries)
+
+    if args.expect_count >= 0:
+        counts = {t.name: t for t in tools}
+        try:
+            actual = counts["count_rows"].func(args.target_table, where=["HS > 25", "HS < 28"])
+        except Exception as exc:
+            print(f"\nreference count failed: {type(exc).__name__}: {exc}")
+        else:
+            hit = f"{args.expect_count}" in actual.replace(",", "")
+            print(
+                f"\nreference count: {actual}  (expected {args.expect_count})  -> "
+                f"{'MATCH' if hit else 'MISMATCH'}"
+            )
+            print("  measured by this script with its own filter -- it says the database is")
+            print("  what we think it is, not that the model got the right answer")
+
+    print(f"\nverdict    : {verdict(result, executed)}")
 
     sandbox.close()
     if result.stopped_reason.value != "final_answer":
         sys.exit(1)
+
+
+def verdict(result: AgentResult, executed: int) -> str:
+    """Did the model actually answer from data, or did it just emit sentences?"""
+    if result.stopped_reason.value != "final_answer":
+        if executed:
+            return (
+                f"no answer: {result.stopped_reason.value} after {executed} statement(s). "
+                "The tools refused the calls rather than returning a plausible wrong result."
+            )
+        return f"no answer: {result.stopped_reason.value}, and no statement ever ran."
+    if not executed:
+        return "answered WITHOUT reading anything -- treat the answer as invented."
+    return f"answered after {len(result.steps)} step(s) with data from {executed} statement(s)."
 
 
 if __name__ == "__main__":

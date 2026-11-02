@@ -276,11 +276,16 @@ class ToolRegistry:
         t = self.get(call.name)
 
         def fail(message: str) -> ToolResult:
+            # The nudge matters for small models: an error on its own often makes a
+            # 0.5B model give up and apologise instead of retrying with better
+            # arguments.  Nothing happened, so retrying is always safe here.
             return ToolResult(
                 call_id=call.call_id,
                 name=call.name,
                 ok=False,
-                content=f"ERROR: {message}",
+                content=(
+                    f"ERROR: {message}\nNothing was changed. Call {call.name} again with corrected arguments."
+                ),
                 error=message,
                 duration_s=time.perf_counter() - started,
                 # a read that failed still counts as having looked: "it is gone" is

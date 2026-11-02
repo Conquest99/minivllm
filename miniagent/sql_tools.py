@@ -101,6 +101,37 @@ _DENIED_KEYWORDS = (
     "benchmark(",
 )
 
+_RESERVED_WORDS = frozenset(
+    """
+    asc desc order group having limit offset select from where join on using
+    and or not null true false union all distinct insert update delete drop create
+    alter truncate table database index into values set case when then else end
+    between like is in exists
+    """.split()
+)
+"""Words that are never a column or table name.
+
+Refusing them turns a *silent* dialect quirk into a readable error: sqlite treats an
+unknown identifier in ``ORDER BY`` / ``WHERE`` as the string literal of that name, so
+``ORDER BY "ASC"`` silently sorts by a constant and ``"HS" > "25 AND ..."`` compares
+against text.  MySQL would raise here; sqlite will not, so the check has to be ours.
+"""
+
+_PACKED_CONDITION = re.compile(
+    r"\b(?:and|or)\b\s+[^\W\d]\w*\s*(?:[<>=!]|\bnot\b|\bis\b|\blike\b|\bin\b|\bbetween\b)",
+    re.IGNORECASE,
+)
+"""A *value* shaped like ``<another column> <operator>`` means two conditions got packed.
+
+``where=["HS > 25 AND HS < 28"]`` is the exact mistake a small model makes: it folds
+two conditions into one list element.  Bound as a parameter it silently matches
+nothing, which is worse than an error -- "0 rows" looks like a real answer.
+
+Deliberately narrow: ``name = 'x' OR 1=1`` is *not* flagged, because a value is only
+ever bound, never concatenated, and searching for that literal text is legitimate.
+The pattern requires a real identifier after ``and``/``or`` to fire.
+"""
+
 
 class SQLPolicyError(ValueError):
     """A request the policy refuses. Message is written for the model to act on."""
@@ -152,6 +183,17 @@ def _placeholder(style: str, index: int) -> str:
     if style == "numeric":
         return f":{index}"
     return "%s"  # pyformat / format
+
+
+def _is_quoted(raw: str) -> bool:
+    """True when the value is wrapped in a matching pair of quotes.
+
+    A quoted value may contain anything -- ``'x'' OR 1=1 --'`` is a legitimate string
+    to search for, and it is bound as a parameter anyway.  Only *unquoted* text with
+    SQL syntax in it is a mistake worth refusing.
+    """
+    text = raw.strip()
+    return len(text) >= 2 and text[0] == text[-1] and text[0] in "'\""
 
 
 def _literal(raw: str) -> Any:
@@ -288,6 +330,11 @@ class SQLSandbox:
                 "'长垣单井基础信息表' (letters, digits, underscore, hyphen, slash); "
                 "no dots, quotes, spaces or semicolons."
             )
+        if name.lower() in _RESERVED_WORDS:
+            raise SQLPolicyError(
+                f"{table!r} is a SQL keyword, not a table name. Pass the actual table, "
+                "for example 'dba04_cy4'."
+            )
         if name in self.policy.denied_tables:
             raise SQLPolicyError(f"table {name!r} is blocked by policy")
         allowed = self.policy.allowed_tables
@@ -301,6 +348,11 @@ class SQLSandbox:
         name = column.strip()
         if not _IDENT.match(name):
             raise SQLPolicyError(f"{column!r} is not a valid column name")
+        if name.lower() in _RESERVED_WORDS:
+            raise SQLPolicyError(
+                f"{column!r} is a SQL keyword, not a column name. "
+                "Pass a real column name from describe_table."
+            )
         return name
 
     def _clause(self, filters: list[str], style: str, dialect: str) -> _Clause:
@@ -335,6 +387,12 @@ class SQLSandbox:
                     f"condition {item!r} has no value. Write the value after the operator, "
                     'for example "name = \'alice\'"; use "name is null" to match NULLs.'
                 )
+            if _PACKED_CONDITION.search(raw) and not _is_quoted(raw):
+                raise SQLPolicyError(
+                    f"condition {item!r} packs more than one condition into the value. "
+                    "Each list element is ONE condition: pass ['HS > 25', 'HS < 28'], "
+                    "not ['HS > 25 AND HS < 28']."
+                )
             parts.append(f"{column} {sql_op} {_placeholder(style, len(params) + 1)}")
             params.append(_literal(raw))
 
@@ -345,6 +403,11 @@ class SQLSandbox:
         text = (order_by or "").strip()
         if not text:
             return ""
+        if text.lower() in ("asc", "desc", "ascending", "descending"):
+            raise SQLPolicyError(
+                f"order_by {order_by!r} is a direction, not a column. Name the column "
+                "first: 'NY desc', or omit order_by entirely."
+            )
         match = _ORDER.match(text)
         if not match:
             raise SQLPolicyError(f"cannot read order_by {order_by!r}. Use 'column' or 'column desc'.")
@@ -535,7 +598,10 @@ def make_sql_tools(
             columns: Column names to return; omit for all columns.
             where: Conditions like "status = 'paid'", "amount > 100",
                 "name like 'A%'", "id in (1, 2)", "note is null".
-            order_by: "column" or "column desc".
+                One condition per element: use ["HS > 25", "HS < 28"],
+                never ["HS > 25 AND HS < 28"].
+            order_by: A column name, optionally followed by "desc": "NY desc".
+                Never a direction on its own. Omit it if unsure.
             limit: Maximum rows to return; clamped to the server-side policy.
         """
         sql, params = box.build_select(table, columns, where or [], order_by, limit)
@@ -550,7 +616,7 @@ def make_sql_tools(
 
         Args:
             table: Bare table name.
-            where: Conditions in the same form as query_table's.
+            where: Conditions in the same form as query_table's, one per element.
         """
         name = box._check_table(table)
         dialect = _dialect(box.connection())
@@ -592,16 +658,19 @@ def mysql_connector(
             raise RuntimeError(
                 "pymysql is not installed. Run: uv pip install --python .venv\\Scripts\\python.exe pymysql"
             ) from exc
-        return pymysql.connect(
-            host=host,
-            port=port,
-            user=user,
-            password=password,
-            database=database or None,
-            charset="utf8mb4",
-            autocommit=True,
-            **kwargs,
-        )
+        # A dict, not keyword-by-keyword: a caller-supplied charset/autocommit (common
+        # when the config comes from a JSON file) must override, not collide.
+        options: dict[str, Any] = {
+            "host": host,
+            "port": port,
+            "user": user,
+            "password": password,
+            "database": database or None,
+            "charset": "utf8mb4",
+            "autocommit": True,
+        }
+        options.update(kwargs)
+        return pymysql.connect(**options)
 
     return connect
 

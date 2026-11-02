@@ -37,16 +37,16 @@ loop:
 | [agent.py](../../miniagent/agent.py) | ReAct 循环 + 六条护栏 | 循环检测、步数上限、解析重试、一轮一改、改后必读、错误回灌 | [agent.md](agent.md) |
 | [scripts/agent_demo.py](../../scripts/agent_demo.py) | 逐步打印 trace | 三种后端，从确定性到真实模型 | [scripts-agent_demo.md](scripts-agent_demo.md) |
 | [scripts/agent_files_demo.py](../../scripts/agent_files_demo.py) | 真的建/改文件，并对比磁盘内容 | 小模型改错行还自信报成功的现场 | [scripts-agent_files_demo.md](scripts-agent_files_demo.md) |
-| [scripts/agent_sql_demo.py](../../scripts/agent_sql_demo.py) | 只读查库，`--explore` 直接倒 schema | 三种后端；SQLite 免服务器，MySQL 需凭据 | — |
+| [scripts/agent_sql_demo.py](../../scripts/agent_sql_demo.py) | 只读查库，`--explore` 直接倒 schema | 三种后端；SQLite 免服务器，MySQL 需凭据 | [sql_tools.md](sql_tools.md) |
 
-测试（148 个，纯 CPU、无需模型/服务器）：
+测试（157 个，纯 CPU、无需模型/服务器）：
 
 | 文件 | 验证什么 | 文档 |
 |---|---|---|
 | [test_agent_tools.py](../../tests/test_agent_tools.py) | schema 推导、参数校验、计算器安全、沙箱逃逸、写入回执行号 | [tests-tools.md](tests-tools.md) |
 | [test_agent_parser.py](../../tests/test_agent_parser.py) | 4 种方言 + 容错 + 从不抛异常 | [tests-parser.md](tests-parser.md) |
 | [test_agent_loop.py](../../tests/test_agent_loop.py) | 控制流全部分支 + 六条护栏 | [tests-loop.md](tests-loop.md) |
-| [test_agent_sql_tools.py](../../tests/test_agent_sql_tools.py) | 真 SQL、注入面、只读强制、中文标识符 | — |
+| [test_agent_sql_tools.py](../../tests/test_agent_sql_tools.py) | 真 SQL、注入面、只读强制、中文标识符、静默错误的拒绝 | [sql_tools.md](sql_tools.md) |
 
 **建议阅读顺序**：本页（伪代码）→ `types` → `tools` → `parser` → `agent` → `backends` → `builtin_tools` → `sql_tools` → 三个 demo → 测试。
 
