@@ -57,12 +57,15 @@ Part two, [miniagent](miniagent/), is a hand-written agent loop on top of this e
 | Tolerant parsing | [parser.py](miniagent/parser.py) | Qwen tags, JSON fences, bare JSON, ReAct -- and never raises |
 | Tool errors as observations | `ToolRegistry.execute` | a stack trace teaches the model nothing; a readable error does |
 | Safe calculator | [builtin_tools.py](miniagent/builtin_tools.py) | walks the AST instead of calling `eval`; sandboxed file access |
+| Read-only SQL | [sql_tools.py](miniagent/sql_tools.py) | identifiers validated *then* quoted, values always bound, session forced read-only |
 | Swappable backends | [backends.py](miniagent/backends.py) | scripted / local engine / any OpenAI-compatible endpoint |
 
 ```powershell
 python scripts\agent_demo.py                            # deterministic, no GPU
 python scripts\agent_demo.py --backend scripted-error   # watch error recovery
 python scripts\agent_demo.py --backend local            # the real 0.5B checkpoint
+python scripts\agent_sql_demo.py                        # read-only SQL over a sample sqlite db
+python scripts\agent_sql_demo.py --explore               # dump the schema, no model involved
 ```
 
 ## Install

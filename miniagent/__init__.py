@@ -29,6 +29,13 @@ from miniagent.builtin_tools import (
     text_stats,
 )
 from miniagent.parser import ParseResult, format_tool_call, parse
+from miniagent.sql_tools import (
+    SQLPolicy,
+    SQLSandbox,
+    make_sql_tools,
+    mysql_connector,
+    sqlite_connector,
+)
 from miniagent.tools import Tool, ToolRegistry, tool
 from miniagent.types import (
     AgentResult,
@@ -53,6 +60,8 @@ __all__ = [
     "Role",
     "Sandbox",
     "ScriptedBackend",
+    "SQLPolicy",
+    "SQLSandbox",
     "Step",
     "StopReason",
     "Tool",
@@ -64,8 +73,11 @@ __all__ = [
     "default_tools",
     "format_tool_call",
     "make_file_tools",
+    "make_sql_tools",
     "make_write_tools",
+    "mysql_connector",
     "parse",
+    "sqlite_connector",
     "text_stats",
     "tool",
 ]

@@ -53,12 +53,15 @@
 | 宽容的解析 | [parser.py](miniagent/parser.py) | Qwen 标签、JSON 代码块、裸 JSON、ReAct，且永不抛异常 |
 | 工具错误当观察 | `ToolRegistry.execute` | 栈追踪教不会模型，可读的错误消息可以 |
 | 安全计算器 | [builtin_tools.py](miniagent/builtin_tools.py) | 走 AST 而不是 `eval`；文件访问锁在沙箱内 |
+| 只读查库 | [sql_tools.py](miniagent/sql_tools.py) | 标识符先验证再加引号，值永远绑定参数，会话层强制只读 |
 | 可换后端 | [backends.py](miniagent/backends.py) | 脚本 / 本地引擎 / 任何 OpenAI 兼容端点 |
 
 ```powershell
 python scripts\agent_demo.py                            # 确定性，无需 GPU
 python scripts\agent_demo.py --backend scripted-error   # 看工具错误如何被回灌
 python scripts\agent_demo.py --backend local            # 真实 0.5B 模型
+python scripts\agent_sql_demo.py                        # 只读查 SQLite（自动建样例库）
+python scripts\agent_sql_demo.py --explore              # 直接倒 schema，不走模型
 ```
 
 ## 安装
