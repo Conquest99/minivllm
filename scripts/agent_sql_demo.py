@@ -336,6 +336,19 @@ def main() -> None:
     )
     sandbox = SQLSandbox(connect, policy)
 
+    # --explore needs no model at all, so it comes before the backend is built:
+    # otherwise `--explore --backend local` would load 1 GB of weights to print a schema.
+    if args.explore:
+        sandbox.connection()  # apply the read-only guard before reporting it
+        print(f"database : {label}")
+        print(f"read-only: {sandbox.read_only_state}")
+        try:
+            explore(sandbox, max_tables=args.max_tables, columns=args.explore_columns, sample=args.sample)
+        finally:
+            print(f"\nstatements executed ({len(sandbox.queries)})")
+            sandbox.close()
+        return
+
     if args.backend == "scripted":
         backend = scripted_backend()
     elif args.backend == "scripted-attack":
@@ -347,17 +360,6 @@ def main() -> None:
         print(backend.describe())
 
     tools = make_sql_tools(sandbox)
-
-    if args.explore:
-        sandbox.connection()  # apply the read-only guard before reporting it
-        print(f"database : {label}")
-        print(f"read-only: {sandbox.read_only_state}")
-        try:
-            explore(sandbox, max_tables=args.max_tables, columns=args.explore_columns, sample=args.sample)
-        finally:
-            print(f"\nstatements executed ({len(sandbox.queries)})")
-            sandbox.close()
-        return
 
     system_prompt = DEFAULT_SYSTEM_PROMPT + (
         " You can inspect a database with read-only tools. List the tables, read the"
