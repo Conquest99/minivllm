@@ -76,6 +76,19 @@ def test_alternate_key_spellings():
     assert nested.calls[0].arguments == {"y": 2}
 
 
+def test_openai_wire_shape_keeps_its_arguments():
+    """``{"function": {"name": …, "arguments": …}}`` is what OpenAI's API returns.
+
+    The name used to be found inside the nested dict while the arguments were looked
+    up at the top level, so the call came out with ``{}`` -- a silent data loss that
+    only shows up later as "missing required argument".
+    """
+    text = '<tool_call>{"type": "function", "function": {"name": "add", "arguments": {"a": 1}}}</tool_call>'
+    call = parse(text).calls[0]
+    assert call.name == "add"
+    assert call.arguments == {"a": 1}
+
+
 def test_single_quotes_are_tolerated():
     result = parse("<tool_call>{'name': 'calculator', 'arguments': {'expression': '1+1'}}</tool_call>")
     assert result.has_calls

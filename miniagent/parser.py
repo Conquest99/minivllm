@@ -79,22 +79,33 @@ def _load_object(blob: str) -> dict | None:
     return None
 
 
+def _first(containers: tuple[dict, ...], keys: tuple[str, ...]) -> object | None:
+    """First value found for any of ``keys``, searching ``containers`` in order."""
+    for container in containers:
+        for key in keys:
+            if key in container:
+                return container[key]
+    return None
+
+
 def _normalise(obj: dict, raw: str) -> ToolCall:
     """Accept the several key spellings models use and build a ToolCall."""
-    name: object = None
+    # The OpenAI wire shape nests everything one level down:
+    # {"function": {"name": "add", "arguments": {...}}}.  Unwrap it first: without
+    # this the name is found inside the nested dict while the arguments are looked
+    # up at the top level and silently come out empty.
+    source = obj
     for key in _NAME_KEYS:
-        if key in obj:
-            name = obj[key]
+        if isinstance(obj.get(key), dict):
+            source = obj[key]
             break
-    if isinstance(name, dict):  # {"function": {"name": "..."}}
+    containers = (source, obj) if source is not obj else (obj,)
+
+    name: object = _first(containers, _NAME_KEYS)
+    if isinstance(name, dict):  # {"name": {"name": "..."}}
         name = name.get("name")
 
-    args: object = {}
-    for key in _ARG_KEYS:
-        if key in obj:
-            args = obj[key]
-            break
-
+    args: object = _first(containers, _ARG_KEYS)
     if isinstance(args, str):
         parsed = _load_object(args)
         args = parsed if parsed is not None else {"_raw": args}
