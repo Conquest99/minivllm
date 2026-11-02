@@ -1,13 +1,12 @@
-"""How much KV memory does *not* paging waste?
+"""不做分页会浪费多少 KV 显存？
 
-Two engines are compared against the same memory pool and the same requests:
+同一个内存池、同一批请求，比较两个引擎：
 
-* **reserve** -- the pre-paged-attention approach: every admitted request gets
-  one contiguous buffer big enough for the worst case (``max_model_len``),
-  because the engine cannot move KV around later.
-* **paged**   -- blocks are handed out as tokens are actually computed.
+* **reserve** —— 分页注意力之前的做法：每个被接纳的请求拿到一块足够应付最坏情况
+  （``max_model_len``）的连续缓冲区，因为引擎之后没法挪动 KV。
+* **paged**   —— 按实际算出来的 token 发块。
 
-Run it on CPU; it only exercises the allocator, no model.
+在 CPU 上跑即可；它只压分配器，不碰模型。
 
     python scripts/bench_fragmentation.py --kv-pool-tokens 4096 --requests 64
 """

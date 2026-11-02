@@ -1,14 +1,13 @@
-"""Run the agent loop and watch every step.
+"""跑一遍 agent 循环，并把每一步都打出来。
 
-Default is ``--backend scripted``: a canned model that asks for two calculator
-calls, so the loop's shape is visible instantly and deterministically.
+默认是 ``--backend scripted``：一个写死的模型，请求两次 calculator 调用，于是循环的
+形状立刻、确定性地显现出来。
 
-    python scripts/agent_demo.py                       # no GPU, no model
-    python scripts/agent_demo.py --backend local       # the local 0.5B checkpoint
+    python scripts/agent_demo.py                       # 不用 GPU，不用模型
+    python scripts/agent_demo.py --backend local       # 本地 0.5B 权重
     python scripts/agent_demo.py --backend api --model deepseek-chat
 
-The scripted run is the one to read first: it shows what the loop does without
-any model quality getting in the way.
+先读 scripted 那一版：它展示的是循环在做什么，完全不受模型质量干扰。
 """
 
 from __future__ import annotations

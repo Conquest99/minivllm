@@ -1,8 +1,7 @@
-"""Download the experiment checkpoint (~1 GB) into ``models/``.
+"""把实验用的权重（约 1 GB）下到 ``models/``。
 
-``huggingface.co`` is unreachable from some networks; if you have a local proxy,
-export it first, e.g. ``$env:HTTPS_PROXY = "http://127.0.0.1:10081"``, or point
-``HF_ENDPOINT`` at a mirror.
+有些网络访问不到 ``huggingface.co``；如果你有本地代理，先设上，例如
+``$env:HTTPS_PROXY = "http://127.0.0.1:10081"``，或者把 ``HF_ENDPOINT`` 指向镜像。
 """
 
 from __future__ import annotations

@@ -1,15 +1,12 @@
-"""What does prefix caching actually buy you?
+"""前缀缓存到底买到了什么？
 
-The setup: every request carries the same long system prompt, then asks a
-different question.  Without prefix caching each request re-prefills those tokens
-from scratch; with it, the first request fills the blocks and the rest share them
-by reference and start decoding almost immediately.
+设置：每个请求都带着同一段很长的 system prompt，然后问一个不同的问题。没有前缀
+缓存时，每个请求都要把这些 token 从零 prefill 一遍；有了它，第一个请求填满这些块，
+其余请求按引用共享，几乎立刻开始解码。
 
-The requests are run **one at a time** on purpose.  Prefix caching can only help a
-request that arrives after the shared prefix has been computed and registered, so
-batching them all at once (which is what a burst does) shows nothing.  Running them
-sequentially also keeps TTFT free of queueing delay, so the number means what it
-says: how long until the first token.
+请求是**一个一个**跑的，这是故意的。前缀缓存只能帮到「在共享前缀已经算完并登记之后
+才到达」的请求，所以一次性全塞进去（也就是突发流量的样子）什么都测不出来。顺序跑还
+让 TTFT 里没有排队延迟，于是这个数就是它字面上的意思：到第一个 token 要多久。
 
     python scripts/bench_prefix_caching.py --requests 6 --max-tokens 32
 """

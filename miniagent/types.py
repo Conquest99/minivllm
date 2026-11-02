@@ -1,14 +1,12 @@
-"""Message and result types shared by the agent, the tools and the backends.
+"""agent、工具、后端共用的消息与结果类型。
 
-The whole agent is a loop over ``list[Message]``.  Two design choices matter:
+整个 agent 就是一个在 ``list[Message]`` 上的循环。两个设计选择值得说明：
 
-* **One internal message format.**  Backends translate to/from whatever their
-  provider wants (Qwen's ``<tool_call>`` tags, OpenAI's ``tool_calls`` array), but
-  the loop only ever sees this one type.  That is what makes the loop testable
-  without a model.
-* **Tool calls live on the assistant message.**  That mirrors the OpenAI schema,
-  and Qwen's chat template renders exactly that shape, so no custom prompt
-  rewriting is needed.
+* **只有一种内部消息格式。**  后端各自负责和自己那家服务商互转（Qwen 的
+  ``<tool_call>`` 标签、OpenAI 的 ``tool_calls`` 数组），但循环永远只看见这一种类型。
+  这正是循环可以在没有模型的情况下被测试的原因。
+* **工具调用挂在 assistant 消息上。**  这与 OpenAI 的 schema 对齐，Qwen 的 chat
+  template 渲染的正是这个形状，所以不需要任何自定义的 prompt 改写。
 """
 
 from __future__ import annotations

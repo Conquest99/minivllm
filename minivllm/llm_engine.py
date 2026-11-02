@@ -1,16 +1,15 @@
-"""The engine: one ``step()`` == one forward pass == one scheduling decision.
+"""引擎本体：一次 ``step()`` == 一次前向 == 一次调度决策。
 
-This is the loop everything else exists to serve::
+这就是其它一切都在为之服务的那个循环::
 
     while requests are alive:
-        batch = scheduler.schedule()          # who runs, how many tokens each
-        model_runner.apply_cow(batch.cow_ops) # structural decisions -> memcpy
-        logits = model_runner.execute_model() # paged attention over the block pool
-        sample + bookkeeping                  # finished seqs leave, freed seqs return
+        batch = scheduler.schedule()          # 谁跑，各跑多少 token
+        model_runner.apply_cow(batch.cow_ops) # 结构决策 -> memcpy
+        logits = model_runner.execute_model() # 在 block 池上做分页注意力
+        sample + bookkeeping                  # 结束的序列离场，释放的页回池
 
-Wall-clock is measured per step, so the engine reports the two numbers that
-actually matter for an inference server: **tokens/s** (throughput) and **TTFT /
-ITL** (how smooth a single stream feels).
+每步都计时，所以引擎报的正是推理服务真正关心的两个数：**tokens/s**（吞吐）和
+**TTFT / ITL**（单条流顺不顺滑）。
 """
 
 from __future__ import annotations

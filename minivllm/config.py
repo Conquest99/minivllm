@@ -1,15 +1,13 @@
-"""Engine-level configuration.
+"""引擎级配置。
 
-Two things are worth noticing here, because they are the whole reason paged
-attention exists:
+有两处值得注意，因为它们正是分页注意力存在的全部理由：
 
-* ``block_size`` -- KV cache is handed out in fixed-size *blocks* of tokens, so a
-  request that ends up 3 tokens long still owns a whole block.  Small blocks
-  waste less memory per request, large blocks mean fewer block-table lookups.
-  16 is the vLLM default and a good compromise.
-* ``max_num_batched_tokens`` -- the per-step *token* budget (not sequence
-  budget).  A prefill of 1000 tokens and 8 decodes of 1 token cost the same
-  budget, which is what makes mixing prefill and decode in one batch possible.
+* ``block_size`` —— KV cache 按固定大小的 token *块*发放，所以一条最后只有 3 个
+  token 的请求照样占一整块。块小则每请求浪费少，块大则页表查询少。
+  16 是 vLLM 的默认值，也是个好折中。
+* ``max_num_batched_tokens`` —— 每步的 *token* 预算（不是序列预算）。一次 1000
+  token 的 prefill 和 8 个 1 token 的 decode 花的是同一份预算，这才让 prefill 和
+  decode 混在一批里成为可能。
 """
 
 from __future__ import annotations

@@ -1,19 +1,17 @@
-"""Runs the transformer forward pass against a paged KV cache.
+"""在分页 KV cache 上跑 transformer 的前向。
 
-The model weights are reused straight from ``transformers`` -- we only replace
-the attention *bookkeeping*: where K/V go (``slot_mapping`` into a block pool) and
-where they are read from (``block_table``), instead of an ever-growing contiguous
-``past_key_values`` tensor per sequence.
+权重直接用 ``transformers`` 的，我们只替换注意力的*记账*：K/V 写到哪
+（``slot_mapping`` 指向块池）以及从哪读（``block_table``），而不是每条序列一个
+不断增长的连续 ``past_key_values`` 张量。
 
-Consequences worth understanding:
+值得理解的三个后果：
 
-* the cache is allocated **once**, at startup, at a fixed size.  It never grows,
-  never gets reallocated and never gets copied by ``torch.cat``.
-* prefill and decode can sit in the same batch, because both are just "N tokens
-  that need to write their KV somewhere and read a prefix".
-* the logits are produced only for the last token of each sequence
-  (``last_indices``), so a mixed batch costs one vocab-sized matmul per sequence
-  rather than per token.
+* cache 在启动时**一次性**按固定大小分配好。它不增长、不重分配、也从不会被
+  ``torch.cat`` 复制。
+* prefill 和 decode 可以待在同一批里，因为两者都只是「N 个 token 需要把 KV 写到
+  某处、并读一段前缀」。
+* logits 只对每条序列的最后一个 token 产出（``last_indices``），所以混合批的代价
+  是每条序列一次词表大小的 matmul，而不是每个 token 一次。
 """
 
 from __future__ import annotations

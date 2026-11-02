@@ -1,18 +1,16 @@
-"""Tool definition, JSON-schema generation, and the registry that runs them.
+"""工具定义、JSON schema 生成，以及执行它们的注册表。
 
-The interesting part is :func:`tool`: it turns a plain Python function into the
-schema an LLM needs, using nothing but ``inspect`` and type hints.  That is exactly
-how the ``tools=[...]`` payload of a function-calling API gets built -- there is no
-magic, just introspection plus a docstring.
+有意思的是 :func:`tool`：它把一个普通 Python 函数变成 LLM 需要的 schema，只靠
+``inspect`` 和类型注解。function-calling API 的 ``tools=[...]`` 载荷就是这么造出来
+的 —— 没有魔法，只有自省加一段 docstring。
 
-Three rules this module enforces, because each one is a real failure mode:
+本模块强制三条规则，每一条都对应一种真实故障：
 
-1. **Validate before calling.** An unknown argument name should come back as a
-   readable message, not as ``TypeError: unexpected keyword argument``.
-2. **Never let a tool kill the loop.** Exceptions become ``ToolResult(ok=False)``,
-   which the agent feeds back to the model so it can correct itself.
-3. **Keep the schema and the signature in sync.** Both come from the same
-   function object, so they cannot drift.
+1. **先校验再调用。**  参数名写错应该回来一句能读懂的话，而不是
+   ``TypeError: unexpected keyword argument``。
+2. **绝不让一个工具弄死循环。**  异常变成 ``ToolResult(ok=False)``，agent 把它回灌
+   给模型，让它自己纠正。
+3. **schema 和签名必须同步。**  两者都来自同一个函数对象，所以不可能漂移。
 """
 
 from __future__ import annotations

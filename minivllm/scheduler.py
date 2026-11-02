@@ -1,21 +1,16 @@
-"""Continuous batching scheduler.
+"""连续批处理调度器。
 
-The scheduling unit is one *step* of the model, i.e. one forward pass over a set
-of tokens.  Two decisions are made every step:
+调度的单位是模型的一个*步*，即对一批 token 的一次前向。每一步做两个决定：
 
-1. **Who runs?**  Every running sequence gets its next token (decode) or its next
-   prefill chunk; leftover budget is filled with brand-new requests.  A finished
-   sequence frees its slot *immediately*, so a new request can join mid-flight --
-   that is the "continuous" in continuous batching.  Static batching instead waits
-   for the whole batch to hit ``max_tokens``.
-2. **What if the cache is full?**  Preempt the youngest running sequence and drop
-   its KV completely (``recompute``), rather than swapping it to CPU.  For a small
-   model the recompute is a single fast prefill, and it frees memory instantly.
+1. **谁跑？**  每个在跑的序列拿到它的下一个 token（decode）或下一段 prefill 分块；
+   剩下的预算用来装全新请求。一条序列结束会*立刻*释放槽位，所以新请求能在中途加入
+   —— 这就是连续批处理里的「连续」。静态批则是等整批都撞到 ``max_tokens``。
+2. **缓存满了怎么办？**  抢占最年轻的在跑序列并彻底丢掉它的 KV（``recompute``），
+   而不是换到 CPU。对小模型，重算就是一次快速 prefill，而且内存立刻释放。
 
-Order matters: decodes go first.  A decode is 1 token and its latency is what a
-user perceives as smoothness; a prefill is a burst of compute whose result nobody
-sees until it finishes.  Draining decodes first is why vLLM's v1 scheduler beats
-the old "prefill-first" order on inter-token latency.
+顺序很重要：decode 优先。一个 decode 是 1 个 token，它的延迟就是用户感知到的顺滑度；
+一次 prefill 是一阵没人看见的计算爆发。先把 decode 排空，正是 vLLM v1 调度器在
+inter-token 延迟上赢过老的「prefill 优先」顺序的原因。
 """
 
 from __future__ import annotations

@@ -1,9 +1,8 @@
-"""minivllm -- a minimal, readable re-implementation of PagedAttention + continuous batching.
+"""minivllm —— PagedAttention + 连续批处理的最小可读实现。
 
-The point of this package is not to be fast.  It is to be *legible*: every
-mechanism that a production engine (vLLM/SGLang/TensorRT-LLM) hides inside a
-fused CUDA kernel or a 5k-line scheduler is written out in plain PyTorch so the
-data flow can be inspected, unit-tested and benchmarked on a laptop GPU.
+这个包的意义不是快，而是*可读*：生产引擎（vLLM / SGLang / TensorRT-LLM）藏在融合
+CUDA kernel 或五千行调度器里的每个机制，这里都用平铺直叙的 PyTorch 写出来，好让
+数据流能被检查、被单测、被在一台笔记本 GPU 上压测。
 """
 
 from minivllm.config import EngineConfig

@@ -1,11 +1,10 @@
-"""One in-flight request.
+"""一条在飞的请求。
 
-A sequence is a *token stream that grows*.  Everything the scheduler and the
-model runner need to know about it reduces to three numbers:
+序列就是*不断变长的 token 流*。调度器和模型执行器需要知道的一切，都能化成三个数：
 
-    len(seq.data)            -- how many tokens exist (prompt + generated)
-    seq.num_computed_tokens  -- how many of them already have KV in the cache
-    len(seq.data) - seq.num_computed_tokens  -- how many tokens this step must run
+    len(seq.data)            -- 一共有多少 token（prompt + 已生成）
+    seq.num_computed_tokens  -- 其中多少个的 KV 已经在 cache 里
+    len(seq.data) - seq.num_computed_tokens  -- 这一步必须跑多少个
 """
 
 from __future__ import annotations

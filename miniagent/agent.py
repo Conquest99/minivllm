@@ -1,38 +1,33 @@
-"""The agent loop.
+"""agent 循环本体。
 
-An "agent" is usually sold as a framework, but the control flow is this::
+"agent" 通常被当成框架来卖，但控制流其实就是这些::
 
     messages = [system, user]
     loop:
-        reply  = model(messages, tools)      # text, possibly containing tool calls
-        calls  = parse(reply)                # text -> structured calls
-        if no calls:  return reply           # the model decided it is done
-        append assistant(reply, calls)       # keep what the model said
+        reply  = model(messages, tools)      # 文本，里面可能藏着工具调用
+        calls  = parse(reply)                # 文本 -> 结构化调用
+        if no calls:  return reply           # 模型认为自己答完了
+        append assistant(reply, calls)       # 记住模型说了什么
         for call in calls:
-            result = tools.execute(call)     # never raises
-            append tool(result)              # the observation
-        if something looks wrong: stop       # guards, see below
+            result = tools.execute(call)     # 永不抛异常
+            append tool(result)              # 观察结果
+        if something looks wrong: stop       # 护栏，见下
 
-Everything else in the file is a guard, and those guards are the difference
-between a demo and something you would let near a user:
+文件里剩下的全是护栏，而护栏正是「demo」和「敢放到用户面前」之间的区别：
 
-* **max_steps** -- a model can loop forever calling tools; bound it.
-* **repeat detection** -- the same tool with the same arguments twice means the
-  observation did not help, so a third attempt will not either.
-* **parse-error budget** -- malformed output is recoverable (feed it back), but
-  only a couple of times.
-* **tool errors are observations, not crashes** -- a stack trace teaches the model
-  nothing; ``ERROR: missing required argument(s) ['a']`` teaches it a lot.
-* **one modifying call per turn** -- two writes in one reply are two *blind* writes:
-  the model committed to both before seeing either result.  Extra writes come back
-  as a ``SKIPPED`` observation so the next turn can act on real state.
-* **a failed write cannot be talked away** -- if a file change did not happen, a
-  prose answer claiming it did is rejected, and the model is told the file is
-  unchanged.  Otherwise a 0.5B model will happily report success it never had.
-* **write, then read back** -- a file the run changed must be read before a final
-  answer is accepted: the answer has to be grounded in an observation of the disk,
-  not in the model's intention.  That is the only defence against a confident
-  description of a file that is not what the model thinks it is.
+* **max_steps** —— 模型可能无限调工具；给它上界。
+* **重复检测** —— 同一个工具配同一份参数来两次，说明观察没帮上忙，第三次也不会。
+* **解析错误预算** —— 坏输出是可恢复的（回灌给它），但只给几次机会。
+* **工具错误是观察，不是崩溃** —— 栈追踪教不会模型任何东西；
+  ``ERROR: missing required argument(s) ['a']`` 能教会很多。
+* **一轮只允许一个改动调用** —— 一次回复里两个写操作就是两次*盲写*：
+  模型在看到任何一个结果之前，就把两个都定下来了。多余的写会以 ``SKIPPED``
+  观察返回，让下一轮基于真实状态再动手。
+* **失败的写不许被嘴硬掉** —— 文件改动没发生，而模型用散文宣称改了，这个答案
+  会被驳回，并告诉它文件没变。否则 0.5B 会愉快地汇报一个从未发生的成功。
+* **写完必须读回** —— 本次运行改过的文件，在接受最终答案前必须被读过：答案要
+  建立在磁盘的观察之上，而不是模型的意图之上。这是对付「自信地描述一个其实不是
+  它以为的那样的文件」的唯一办法。
 """
 
 from __future__ import annotations

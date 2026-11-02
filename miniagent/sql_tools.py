@@ -1,27 +1,23 @@
-"""Read-only SQL tools: inspect a schema and query one table.
+"""只读 SQL 工具：看结构、查一张表。
 
-Written against **DB-API 2.0** (PEP 249) rather than a specific driver, so the
-same code runs on MySQL (``pymysql``) and on ``sqlite3``.  That is not just
-generality for its own sake: it means the security rules below are exercised by
-real SQL in the test suite instead of by a mock that can only agree with itself.
+按 **DB-API 2.0**（PEP 249）写，而不是绑死某个驱动，所以同一份代码能跑在 MySQL
+（``pymysql``）和 ``sqlite3`` 上。这不是为了泛化而泛化：它意味着下面这些安全规则
+是被**真实 SQL** 验证的，而不是被一个只能和自己意见一致的 mock 验证。
 
-The threat model is different from the file tools.  A file tool's danger is a bad
-*path*; a SQL tool's danger is a bad *statement* -- ``DROP TABLE``, ``UNION SELECT
-password FROM users``, a cartesian join that pins the CPU.  Four rules cover it:
+威胁模型和文件工具完全不同。文件工具的危险是一个坏*路径*；SQL 工具的危险是一条坏
+*语句* —— ``DROP TABLE``、``UNION SELECT password FROM users``、把 CPU 钉死的大
+笛卡尔积。四条规则覆盖它：
 
-1. **Never build a statement from model text.**  Table, column and operator names
-   are validated against a strict identifier regex and then a whitelist; every
-   *value* travels as a bound parameter.  There is no string concatenation of user
-   input anywhere, so quoting tricks are not a thing that can happen.
-2. **Read-only by construction.**  The only statements this module can emit are
-   ``SELECT`` / ``SHOW`` / ``PRAGMA``.  Raw SQL is off by default and, when enabled,
-   still has to pass a keyword deny-list and a single-statement check.
-3. **Bounded cost.**  Every query gets a ``LIMIT`` clamped to ``max_rows``, and the
-   result set is truncated by cell width and total size before it reaches the
-   model.
-4. **The real boundary is the database user.**  Grant the agent a MySQL account
-   with ``SELECT`` on one schema and nothing else.  The rules above stop accidental
-   damage and prompt injection; only privileges stop a determined one.
+1. **绝不用模型文本拼语句。**  表名、列名、运算符都先过严格标识符正则再对白名单；
+   每个*值*都以绑定参数出行。任何地方都没有用户输入的字符串拼接，所以引号技巧
+   不是「防住了」，而是根本不会发生。
+2. **结构上就是只读。**  本模块能发出的语句只有 ``SELECT`` / ``SHOW`` / ``PRAGMA``。
+   手写 SQL 默认关闭；即便打开，也要过关键字黑名单和单语句检查。
+3. **有界成本。**  每条查询都带 ``LIMIT`` 并夹到 ``max_rows``；结果集在到达模型
+   之前还会按单元格宽度和总大小截断。
+4. **真正的边界是数据库账号。**  给 agent 一个只对某个 schema 有 ``SELECT`` 的
+   MySQL 账号，别的什么都不给。上面这些规则挡的是误伤和提示注入；能挡住处心积虑
+   的，只有权限。
 """
 
 from __future__ import annotations

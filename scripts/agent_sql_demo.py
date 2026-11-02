@@ -1,41 +1,36 @@
-"""Let the agent answer a question about a database with the read-only SQL tools.
+"""让 agent 用只读 SQL 工具回答一个数据库问题。
 
-    python scripts\\agent_sql_demo.py                  # sqlite: builds a sample DB, no server
-    python scripts\\agent_sql_demo.py --backend local   # same, with the local 0.5B model
-    python scripts\\agent_sql_demo.py --mysql           # a real MySQL server (needs pymysql)
+    python scripts\agent_sql_demo.py                    # sqlite：自动建样例库，不用服务器
+    python scripts\agent_sql_demo.py --backend local    # 同上，换成本地 0.5B 模型
+    python scripts\agent_sql_demo.py --mysql            # 真 MySQL 服务器（需要 pymysql）
 
-The example task is a real one from a Chinese oilfield monthly-report database::
+示例任务来自一个真实的中文油田月报库::
 
     查询四厂油井月报表中含水大于25小于28的行
 
-which is only answerable if you know three conventions, so they are injected into the
-system prompt (see ``DOMAIN_NOTES``):
+只有知道三条约定才能回答，所以它们被塞进了 system prompt（见 ``DOMAIN_NOTES``）：
 
     油井月报 = dba04        四厂 = 后缀 _cy4  ->  dba04_cy4        含水 = HS
 
-That is the whole point of the demo: **the agent is not smarter than its glossary.**
-With the notes it can pick the right table out of 59; without them (``--no-domain-notes``)
-it has to guess between ``dba04``, ``dba04_cy1`` and ``dba04_cy4``, and a wrong guess
-still returns a plausible-looking number of rows.
+这正是这个 demo 的意义：**agent 不会比它的词汇表更聪明。**  有这份笔记，它能从 59
+张表里挑对那一张；没有（``--no-domain-notes``），它就只能在 ``dba04``、``dba04_cy1``
+和 ``dba04_cy4`` 之间猜，而猜错照样会返回一个看起来很合理的行数。
 
-The sqlite mode builds ``agent_workspace/sqldemo.db`` with a miniature ``dba04_cy4``
-plus two decoy tables, so the flow runs offline and repeatably.  It is also how the
-tools are tested: ``sqlite3`` and ``pymysql`` are both DB-API 2.0, so the same policy
-code runs against either.
+sqlite 模式会在 ``agent_workspace/sqldemo.db`` 建一个迷你的 ``dba04_cy4`` 加两张诱饵
+表，所以整个流程可以离线、可重复地跑。工具也是这么测的：``sqlite3`` 和 ``pymysql``
+都是 DB-API 2.0，同一份策略代码对两者都成立。
 
-Nothing here can write.  The sandbox puts the session itself into read-only mode and
-verifies it, every statement is built from validated identifiers plus bound values,
-and ``statements executed`` at the end is the audit trail.
+这里什么都不可能写。沙箱把会话本身置为只读并验证它；每条语句都由校验过的标识符加
+绑定值构建；结尾的 ``statements executed`` 就是审计记录。
 
-MySQL credentials come from flags or the environment::
+MySQL 凭据来自命令行或环境变量::
 
     $env:MINIAGENT_MYSQL_HOST = "127.0.0.1"
     $env:MINIAGENT_MYSQL_USER = "agent"
     $env:MINIAGENT_MYSQL_PASSWORD = "..."
     $env:MINIAGENT_MYSQL_DB = "data"
 
-Grant that account SELECT only.  The policy below stops accidents; privileges are
-what stops a determined prompt-injection.
+给那个账号只授 SELECT。下面的策略挡的是误伤；挡处心积虑的提示注入靠的是权限。
 """
 
 from __future__ import annotations

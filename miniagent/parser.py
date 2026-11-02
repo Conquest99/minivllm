@@ -1,26 +1,24 @@
-"""Turn raw model output into tool calls.
+"""把模型的原始输出转成工具调用。
 
-A function-calling model does not return a struct -- it returns *text* that
-happens to contain a struct.  This module is the adapter, and it is where most
-real-world agents lose robustness, because every model invents its own dialect:
+做 function calling 的模型并不返回结构体 —— 它返回的是*文本*，只不过文本里碰巧
+装着一个结构体。这个模块就是那层适配，也正是大多数真实 agent 丢掉健壮性的地方，
+因为每个模型都自己发明方言：
 
 ===============  ==========================================================
-dialect          example
+方言              例子
 ===============  ==========================================================
 Qwen / Hermes    ``<tool_call>{"name": "add", "arguments": {"a": 1}}</tool_call>``
-JSON fence       ```json``{"name": "add", "arguments": {"a": 1}}`````
-bare JSON        the whole reply is one JSON object
+JSON 围栏         用 ```json 包起来的对象
+裸 JSON          整个回复就是一个 JSON 对象
 ReAct            ``Action: add`` / ``Action Input: {"a": 1}``
 ===============  ==========================================================
 
-Two decisions worth defending:
+两个值得辩护的决定：
 
-* **Never raise on bad output.**  Malformed JSON is a normal event, not an
-  exception: the loop feeds the error back so the model can retry.  Raising would
-  turn a recoverable hiccup into a dead run.
-* **Return the leftover text too.**  A model may say "Let me check that." and then
-  emit a tool call.  That prose belongs in the assistant message; dropping it
-  loses context on the next turn.
+* **坏输出永不抛异常。**  畸形 JSON 是常态而不是异常：循环把错误回灌给模型让它
+  重试。抛异常会把一个可恢复的小磕绊变成一次死掉的运行。
+* **把剩下的散文也返回。**  模型可能先说「我查一下」，再发工具调用。那段散文属于
+  assistant 消息；丢掉它就丢了下一轮的上下文。
 """
 
 from __future__ import annotations

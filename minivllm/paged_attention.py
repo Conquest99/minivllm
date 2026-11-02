@@ -1,20 +1,20 @@
-"""Paged attention in plain PyTorch.
+"""用纯 PyTorch 实现的分页注意力。
 
-The cache is one dense tensor::
+cache 是一个稠密张量::
 
     k_cache: [layers, num_blocks, block_size, num_kv_heads, head_dim]
 
-so a token's KV lives at flat slot ``block_id * block_size + offset`` -- *within a
-layer*.  Two operations are enough to run attention over it:
+所以一个 token 的 KV 落在平坦槽位 ``block_id * block_size + offset`` —— *在某一层
+之内*。在它上面跑注意力只需要两个操作：
 
-* ``write_kv_cache`` -- scatter the freshly projected K/V of this step into their
-  slots (``slot_mapping`` says where each token goes).
-* ``gather_kv`` -- for each sequence, walk its page table to *build* a contiguous
-  K/V view, which is what a fused PagedAttention kernel avoids doing.
+* ``write_kv_cache`` —— 把这一步新投影出来的 K/V 散射到各自的槽位
+  （``slot_mapping`` 说明每个 token 去哪）。
+* ``gather_kv`` —— 对每条序列走它的页表，*拼出*一段连续的 K/V 视图，而这正是融合
+  版 PagedAttention kernel 极力避免的动作。
 
-The gather is the honest cost of doing this without a custom kernel.  Note it is
-a single ``index_select`` over a padded 2-D slot index, not a Python loop, so it
-is still O(batch) kernel launches rather than O(batch * blocks).
+这个 gather 就是不写定制 kernel 的诚实代价。注意它是对一个补齐过的二维槽位下标做
+一次 ``index_select``，不是 Python 循环，所以仍然是 O(batch) 次 kernel 启动，而不是
+O(batch × blocks)。
 """
 
 from __future__ import annotations

@@ -1,24 +1,19 @@
-"""Static batching vs continuous batching, same model and same code path.
+"""静态批 vs 连续批，同一个模型、同一条代码路径。
 
-Only the *scheduling policy* changes, so the difference is attributable to
-scheduling and nothing else:
+变的只有*调度策略*，所以差异只能归因于调度，别的都不算：
 
-* ``--mode static``       -- a batch is admitted, runs until its longest member
-  finishes, and no new request joins before the whole batch drains.  Every member
-  of a batch effectively gets the longest member's token budget.
-* ``--mode continuous``   -- the batch is re-decided every step: finished
-  sequences free their slot and their pages immediately, queued requests join at
-  the next step.
+* ``--mode static``       —— 一批被接纳后一直跑到最长的那个成员结束，整批排空之前
+  没有新请求能加入。批里每个成员实际上都被拖成最长成员的 token 预算。
+* ``--mode continuous``   —— 每一步都重新决定：结束的序列立刻释放槽位和页，排队的
+  请求下一步就能加入。
 
-The requests deliberately have very different output lengths (16..256 tokens).
-That is the workload where static batching loses, and it is what a real chat
-server sees.
+请求的输出长度刻意差得很大（16..256 token）。这正是静态批吃亏的负载，也是真实对话
+服务器看到的样子。
 
-``--with-hf`` additionally times plain ``model.generate`` over the same workload.
-It is not an apples-to-apples row (different code, different KV strategy), but it
-answers the obvious follow-up: *what does a well-tuned implementation cost per
-token on this machine?*  If our continuous engine beats HF static despite being
-10x less optimised, the scheduling win is real.
+``--with-hf`` 会额外对同一负载计一遍纯 ``model.generate`` 的时间。那一行不是严格
+同口径（不同代码、不同 KV 策略），但它回答了一个必然的追问：*在这台机器上，一个调
+优过的实现每个 token 要花多少？*  如果我们这个连续引擎在少优化 10 倍的情况下还能
+赢过 HF 的静态批，那调度的收益就是真的。
 
     python scripts/bench_static_vs_continuous.py --num-requests 24 --batch-size 8
 """

@@ -1,7 +1,7 @@
-"""Sampling parameters plus the (small) sampler itself.
+"""采样参数加上（很小的）采样器本体。
 
-Deliberately independent of the model: it only sees a ``[vocab]`` logits vector
-per sequence, which is also why it is trivial to unit-test on CPU.
+刻意独立于模型：它每条序列只看见一个 ``[vocab]`` 的 logits 向量，这也是它能在 CPU
+上轻松单测的原因。
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Shared workload generation so every benchmark measures the same requests."""
+"""共用的负载生成器，保证每个 benchmark 量的是同一批请求。"""
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
-"""Smoke test / demo: load the engine, generate a few completions, print the stats.
+"""冒烟测试 / 演示：加载引擎，生成几条，把统计打出来。
 
-python scripts/demo_generate.py --prompts "What is paged attention?"
+python scripts/demo_generate.py --prompts "What is paged attention?\"
 """
 
 from __future__ import annotations

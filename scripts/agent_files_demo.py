@@ -1,13 +1,12 @@
-"""Watch the agent create, read and edit a file on disk.
+"""看 agent 在磁盘上创建、读取、修改一个文件。
 
-    python scripts/agent_files_demo.py                      # scripted: no GPU, no model
-    python scripts/agent_files_demo.py --backend local      # the local 0.5B checkpoint
+    python scripts/agent_files_demo.py                      # scripted：不用 GPU、不用模型
+    python scripts/agent_files_demo.py --backend local      # 本地 0.5B 权重
     python scripts/agent_files_demo.py --backend scripted-error
 
-The scripted run is a canned model: it proves the tools work and shows the loop's
-shape.  The local run is the real experiment -- a 0.5B model emitting JSON that
-contains quoted text is exactly where small models fail, and the failure shows up
-in the trace (a parse error, or an argument-name error the model has to fix).
+scripted 那版是一个写死的模型：它证明工具能用、并展示循环的形状。local 那版才是真
+实验 —— 让 0.5B 输出含引号文本的 JSON，正是小模型翻车的地方，而失败会在 trace 里
+显形（一个解析错误，或一个它必须自己修掉的参数名错误）。
 """
 
 from __future__ import annotations

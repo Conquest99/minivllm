@@ -1,21 +1,19 @@
-"""The paged KV cache allocator -- the heart of PagedAttention.
+"""分页 KV cache 的分配器 —— PagedAttention 的心脏。
 
-Mental model: the KV cache is a fixed pool of ``num_blocks`` physical pages, and
-every sequence holds a *page table* (``seq.block_table``) mapping its logical
-block index to a physical block id.  The attention kernel never assumes that a
-sequence's KV is contiguous in memory; it walks the page table instead.
+心智模型：KV cache 是一个固定的物理页池（``num_blocks`` 页），每条序列持有一张
+*页表*（``seq.block_table``），把它的逻辑块号映射到物理块号。注意力 kernel 从不
+假设一条序列的 KV 在内存里连续；它走页表。
 
-Three mechanisms share this one pool:
+三种机制共用这一个池子：
 
-1. **No reservation.**  A sequence only owns pages for tokens it has actually
-   computed.  The classic "reserve ``max_model_len`` tokens per request" approach
-   is implemented in ``naive_reservation_cost()`` so the waste can be measured.
-2. **Reference counting + copy-on-write.**  Two sequences may share the same
-   physical block (identical system prompt, or ``n`` parallel samples).  A block
-   is only copied when a sequence writes into a *partially filled* shared block.
-3. **Prefix caching.**  A full block is hashed over its token content; once it
-   falls to ref-count 0 it stays in ``hash_to_block`` as an evictable cache entry,
-   so the next request with the same prefix can skip its prefill entirely.
+1. **不预留。**  一条序列只在实际算过的 token 上拥有页。「每个请求预留
+   ``max_model_len`` 个 token」的老做法写在 ``naive_reservation_cost()`` 里，好让
+   那份浪费可以被量出来。
+2. **引用计数 + 写时复制。**  两条序列可以共享同一个物理块（相同 system prompt，
+   或 ``n`` 路并行采样）。只有当一条序列要往一个*半满的*共享块里写时才会复制。
+3. **前缀缓存。**  一个满块按它的 token 内容做哈希；引用计数降到 0 之后它仍留在
+   ``hash_to_block`` 里当可逐出的缓存项，于是下一个共享同一前缀的请求可以整段跳过
+   prefill。
 """
 
 from __future__ import annotations

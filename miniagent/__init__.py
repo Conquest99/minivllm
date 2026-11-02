@@ -1,8 +1,7 @@
-"""miniagent -- a hand-written ReAct loop, in about 200 lines of control flow.
+"""miniagent —— 手写 ReAct 循环，约 200 行控制流。
 
-There is no framework here on purpose.  An agent is a ``while`` loop over a message
-list with a handful of guards; using a library hides exactly the part that
-interviews and incidents are about.
+这里刻意不用任何框架。所谓 agent，就是「在一个消息列表上跑的 while 循环，外加几道
+护栏」；用库把它包起来，恰好藏掉了面试和事故最关心的那部分。
 
     from miniagent import Agent, ScriptedBackend, ToolRegistry
     from miniagent.builtin_tools import calculator

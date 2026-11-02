@@ -1,14 +1,11 @@
-"""Built-in tools: a safe calculator, a text counter, and a sandboxed filesystem.
+"""内置工具：一个安全的计算器、一个文本计数器、一个沙箱文件系统。
 
-These are deliberately boring.  The point of shipping them is to show the
-*boundary* discipline that makes tools safe:
+它们刻意很无聊。把它们发出来的意义，是展示让工具安全的*边界*纪律：
 
-* ``calculator`` never calls :func:`eval`.  It walks the AST and only permits
-  arithmetic on numbers, so ``__import__("os").system("...")`` is not "blocked by
-  a regex", it is structurally inexpressible.
-* ``read_file`` / ``list_dir`` resolve every path against a root and refuse
-  anything that escapes it.  ``..`` is not filtered as a string; the real path is
-  compared.
+* ``calculator`` 从不调用 :func:`eval`。它遍历 AST，只允许对数字做算术，所以
+  ``__import__("os").system("...")`` 不是「被正则挡住了」，而是在结构上就写不出来。
+* ``read_file`` / ``list_dir`` 把每个路径相对一个根目录解析，逃出去的一律拒绝。
+  ``..`` 不是当字符串过滤掉的，而是比较真实路径。
 """
 
 from __future__ import annotations

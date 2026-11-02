@@ -1,19 +1,18 @@
-"""Where the tokens come from.
+"""token 从哪来。
 
-The loop does not care whether the model is a 0.5B local checkpoint or a hosted
-API, so the only contract is::
+循环不关心模型是本地 0.5B 还是一个托管 API，唯一的契约是::
 
     complete(messages, tools=..., max_tokens=...) -> str
 
-That single method buys three things:
+这一个方法换来三样东西：
 
-* **Deterministic tests.**  :class:`ScriptedBackend` replays canned replies and
-  :class:`CallableBackend` lets a test react to the conversation, so the agent
-  loop is verified without a GPU and without flaky model output.
-* **A local backend** over :class:`minivllm.LLMEngine`, which is why this repo has
-  a serving engine in the first place.
-* **An HTTP backend** for anything that speaks the OpenAI chat-completions
-  schema (DeepSeek, a vLLM server, Ollama, LM Studio).
+* **确定性测试。**  :class:`ScriptedBackend` 回放写好的台词，
+  :class:`CallableBackend` 让测试能对对话作出反应，于是 agent 循环不需要 GPU、
+  也不受模型输出波动的影响就能验证。
+* **本地后端**，跑在 :class:`minivllm.LLMEngine` 上 —— 这也是这个仓库为什么会带
+  一个推理引擎。
+* **HTTP 后端**，任何说 OpenAI chat-completions 协议的都能接（DeepSeek、vLLM
+  服务器、Ollama、LM Studio）。
 """
 
 from __future__ import annotations
