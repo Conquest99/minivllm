@@ -279,6 +279,30 @@ Nothing was changed. Call query_table again with corrected arguments.
 
 第一行是「取了几行 + 从哪张表 + limit」，这样模型能判断结果是否被截断。`NULL` 显式打印（不是空串），二进制显示成 `<N bytes>`。
 
+### 截断必须说出来：哨兵行技巧
+
+「取了几行」写在这里还不够——模型看到 `1 row(s)` 时没法知道**真实有几行**。0.5B 实测就是这个结果：`--max-rows 1` 下它把 1 行当成全部答案报了出去，而库里其实匹配 2 行。
+
+所以 `query_table` 会**多取一行**（`build_select(..., probe=True)` → `LIMIT capped + 1`），多出来的那行只用来判断「还有没有」，绝不返回给模型：
+
+```python
+truncated = len(rows) > capped
+rows = rows[:capped]
+```
+
+一旦命中，回执第一行变成：
+
+```text
+1 row(s) from dba04_cy4 (limit 1; MORE ROWS EXIST -- this is a partial result,
+call count_rows or narrow the filters)
+```
+
+审计日志里因此会看到 `LIMIT 2`（1 行展示 + 1 行哨兵），这不是 bug。
+
+代价说明：**多取一行仍然要付磁盘读取的钱**，但比起「再发一条 `COUNT(*)`」便宜得多，也不需要第二条语句的往返。这是 SQL 分页里的标准做法（`LIMIT n+1`）。
+
+> 实测补充：信号给出去了，0.5B **照样**把 1 行当成全部答案。工具能做的到此为止——它保证了「信息没被隐瞒」，但「读了信息要不要行动」是模型的事。
+
 `box.queries` 是**审计日志**——本次运行的每一条语句：
 
 ```

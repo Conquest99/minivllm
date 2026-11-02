@@ -142,6 +142,30 @@ def test_query_limit_is_clamped_to_the_policy(db):
     assert "2 row(s)" in out
 
 
+def test_a_truncated_result_says_there_is_more(box):
+    """Silence is the bug: '1 row(s)' when 2 rows match is a confident wrong answer."""
+    out = tools_of(box)["query_table"].func("users", columns=["name"], limit=1)
+    assert "1 row(s)" in out
+    assert "MORE ROWS EXIST" in out
+
+
+def test_a_complete_result_does_not_cry_wolf(box):
+    out = tools_of(box)["query_table"].func("users", columns=["name"], limit=20)
+    assert "4 row(s)" in out
+    assert "MORE ROWS" not in out
+
+
+def test_the_sentinel_row_is_never_shown_to_the_model(box):
+    out = tools_of(box)["query_table"].func("users", columns=["name"], limit=1)
+    body = out.splitlines()[3:]  # summary, header, separator, then data rows
+    assert len(body) == 1
+
+
+def test_the_probe_asks_for_one_row_more_than_it_shows(box):
+    tools_of(box)["query_table"].func("users", columns=["name"], limit=2)
+    assert box.queries[-1].rstrip().endswith("LIMIT 3")
+
+
 def test_count_rows(box):
     assert "4 row(s) in users" in tools_of(box)["count_rows"].func("users")
     assert "3 row(s)" in tools_of(box)["count_rows"].func("users", where=["status = 'active'"])

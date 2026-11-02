@@ -250,7 +250,10 @@ def explore(sandbox: SQLSandbox, *, max_tables: int, columns: int, sample: int) 
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
+    # allow_abbrev=False: with the default, `--max-row 1` silently abbreviates to
+    # --max-rows and a typo takes effect without complaint.  Same rule as everywhere
+    # else in this repo -- a wrong name must fail loudly.
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument(
         "--backend",
         default="scripted",

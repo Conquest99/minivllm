@@ -425,8 +425,15 @@ class SQLSandbox:
         filters: list[str],
         order_by: str,
         limit: int,
+        probe: bool = False,
     ) -> tuple[str, list[Any]]:
-        """Return ``(sql, params)``. Exposed so tests can assert on the SQL itself."""
+        """Return ``(sql, params)``. Exposed so tests can assert on the SQL itself.
+
+        ``probe`` asks for one row *more* than the caller intends to show.  That extra
+        row is a sentinel: if it comes back, more rows exist than the caller will see.
+        A silent ``LIMIT`` is how "2 rows match, here is 1" becomes a confident wrong
+        answer -- the model cannot know what it was not shown.
+        """
         name = self._check_table(table)
         dialect = _dialect(self.connection())
         style = _paramstyle(self.connection())
@@ -439,6 +446,8 @@ class SQLSandbox:
 
         clause = self._clause(list(filters), style, dialect)
         rows = max(1, min(int(limit), self.policy.max_rows))
+        if probe:
+            rows += 1
         sql = (
             f"SELECT {selected} FROM {_quote(name, dialect)}"
             f"{clause.sql}{self._order(order_by, dialect)} LIMIT {rows}"
@@ -607,10 +616,15 @@ def make_sql_tools(
                 Never a direction on its own. Omit it if unsure.
             limit: Maximum rows to return; clamped to the server-side policy.
         """
-        sql, params = box.build_select(table, columns, where or [], order_by, limit)
+        sql, params = box.build_select(table, columns, where or [], order_by, limit, probe=True)
         names, rows = box.execute(sql, params)
         capped = min(max(1, limit), box.policy.max_rows)
-        head = f"{prefix}{len(rows)} row(s) from {table} (limit {capped})\n"
+        truncated = len(rows) > capped
+        rows = rows[:capped]
+        total = f"{len(rows)} row(s) from {table} (limit {capped}"
+        if truncated:
+            total += "; MORE ROWS EXIST -- this is a partial result, call count_rows or narrow the filters"
+        head = f"{prefix}{total})\n"
         return head + _format_table(names, rows, box.policy)
 
     @tool(name="count_rows")
