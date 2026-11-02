@@ -68,7 +68,7 @@ def test_chunked_prefill_respects_the_token_budget():
 def test_chunked_prefill_off_waits_for_a_big_enough_step():
     sched = build(max_num_batched_tokens=8, enable_chunked_prefill=False)
     sched.add(make_seq(0, 20))
-    assert sched.schedule().is_empty  # cannot fit -> nothing is scheduled
+    assert sched.schedule().is_empty  # 装不下 -> 什么都不调度
 
     sched2 = build(max_num_batched_tokens=32, enable_chunked_prefill=False)
     sched2.add(make_seq(0, 20))
@@ -83,7 +83,7 @@ def test_decode_is_scheduled_before_new_prefill():
     running.num_computed_tokens += 4
     running.append_token(0)
 
-    sched.add(make_seq(1, 4))  # arrives while seq 0 is decoding
+    sched.add(make_seq(1, 4))  # 在序列 0 解码期间到达
     out = sched.schedule()
 
     kinds = [(seq.seq_id, n) for seq, n in out.scheduled]
@@ -102,7 +102,7 @@ def test_budget_is_shared_between_prefill_and_decode():
     sched.add(make_seq(1, 8))
     out = sched.schedule()
     assert sum(n for _, n in out.scheduled) <= 8
-    # seq 1 gets what is left of the budget (7), rounded down to a page boundary (4)
+    # 序列 1 拿到剩余预算（7），向下取整到页边界（4）
     assert [(s.seq_id, n) for s, n in out.scheduled] == [(0, 1), (1, 4)]
 
 
@@ -117,7 +117,7 @@ def test_max_num_seqs_is_enforced():
 
 def test_preemption_when_the_cache_is_full():
     sched = build(num_gpu_blocks=4, max_num_seqs=8, max_num_batched_tokens=64, block_size=4)
-    # 2 pages each -> only two sequences fit in a 4-page pool
+    # 每条 2 页 -> 4 页的池子只装得下两条序列
     for i in range(3):
         sched.add(make_seq(i, 8))
 
@@ -125,7 +125,7 @@ def test_preemption_when_the_cache_is_full():
     assert len(out.scheduled) == 2
     assert len(sched.waiting) == 1
 
-    # force a third sequence to grow into the pool while both others decode
+    # 在另外两条解码时，逼第三条序列挤进池子
     for seq, n in out.scheduled:
         seq.num_computed_tokens += n
         seq.append_token(0)
@@ -135,7 +135,7 @@ def test_preemption_when_the_cache_is_full():
     assert out.preempted, "the pool is full, something must give way"
     assert sched.num_preemptions >= 1
     victim = out.preempted[0]
-    assert victim.num_computed_tokens == 0  # recompute from scratch
+    assert victim.num_computed_tokens == 0  # 从零重算
     assert victim.num_preemptions == 1
     assert victim.status is SequenceStatus.WAITING
 
@@ -163,7 +163,7 @@ def test_prefix_cache_skips_recomputing_a_shared_prompt():
     seq.mark_finished(SequenceStatus.FINISHED_LENGTH_CAPPED)
     sched.free_finished()
 
-    # same prompt -> every block is already in the cache
+    # 同样的 prompt -> 每一块都已在缓存里
     second = Sequence(
         seq_id=1, prompt_token_ids=list(first.prompt_token_ids), sampling_params=SamplingParams(max_tokens=4)
     )

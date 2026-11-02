@@ -76,7 +76,7 @@ def random_kv(n: int, kv_heads: int, head_dim: int) -> tuple[torch.Tensor, torch
 def test_write_and_read_roundtrip():
     cache = PagedCache(num_blocks=8, block_size=4, kv_heads=2, head_dim=4)
     k, v = random_kv(6, 2, 4)
-    cache.add([3, 5], k, v)  # deliberately non-monotonic physical blocks
+    cache.add([3, 5], k, v)  # 故意使用非单调的物理块号
 
     tables = torch.tensor([[3, 5]], dtype=torch.long)
     kv_lens = torch.tensor([6], dtype=torch.long)
@@ -118,13 +118,13 @@ def test_prefill_matches_dense():
     kv_heads, heads, head_dim = 2, 4, 8
     cache = PagedCache(num_blocks=16, block_size=4, kv_heads=kv_heads, head_dim=head_dim)
 
-    # sequence 0 owns 11 tokens (3 pages), sequence 1 owns 5 tokens (2 pages)
+    # 序列 0 有 11 个 token（3 页），序列 1 有 5 个 token（2 页）
     layouts = [(11, [0, 1, 2]), (5, [3, 4])]
     for n, blocks in layouts:
         k, v = random_kv(n, kv_heads, head_dim)
         cache.add(blocks, k, v)
 
-    q_lens = [5, 2]  # the number of *new* tokens each sequence prefills this step
+    q_lens = [5, 2]  # 每条序列这一步要 prefill 的 *新* token 数
     q = torch.randn(sum(q_lens), heads, head_dim)
     kv_lens = cache.kv_lens()
 
@@ -154,7 +154,7 @@ def test_copy_blocks_duplicates_kv():
 
     assert torch.allclose(cache.k_cache[6], cache.k_cache[1])
     assert torch.allclose(cache.v_cache[6], cache.v_cache[1])
-    # and the copy is independent
+    # 而且这份副本是独立的
     cache.k_cache[1].zero_()
     assert not torch.allclose(cache.k_cache[6], cache.k_cache[1])
 

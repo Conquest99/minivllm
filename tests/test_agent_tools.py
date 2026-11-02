@@ -15,7 +15,7 @@ from miniagent.builtin_tools import (
 from miniagent.tools import ToolRegistry, tool
 from miniagent.types import ToolCall
 
-# --------------------------------------------------------------- schema generation
+# --------------------------------------------------------------- schema 生成
 
 
 def test_schema_is_derived_from_the_signature():
@@ -88,7 +88,7 @@ def test_schema_shape_matches_the_openai_tools_payload():
     assert set(schema["function"]) == {"name", "description", "parameters"}
 
 
-# --------------------------------------------------------------------- registry
+# --------------------------------------------------------------------- 注册表
 
 
 def test_duplicate_tool_names_are_rejected():
@@ -114,7 +114,7 @@ def test_unknown_tool_is_an_error_but_not_an_exception():
     result = ToolRegistry([calculator]).execute(ToolCall(name="nope", arguments={}))
     assert not result.ok
     assert "unknown tool" in result.content
-    assert "calculator" in result.content  # lists the alternatives
+    assert "calculator" in result.content  # 会列出可选项
 
 
 def test_unexpected_argument_is_reported_readably():
@@ -142,7 +142,7 @@ def test_tool_exception_becomes_an_error_result():
     assert result.content.startswith("ERROR:")
 
 
-# -------------------------------------------------------------------- calculator
+# -------------------------------------------------------------------- 计算器
 
 
 @pytest.mark.parametrize(
@@ -188,7 +188,7 @@ def test_text_stats():
     assert text_stats.func("a b\nc") == "chars=5 words=3 lines=2"
 
 
-# --------------------------------------------------------------------- sandbox
+# --------------------------------------------------------------------- 沙箱
 
 
 def test_sandbox_allows_paths_inside_the_root(tmp_path):
@@ -228,7 +228,7 @@ def test_default_tool_set_has_the_expected_names():
     assert {"calculator", "text_stats", "read_file", "list_dir"} <= names
 
 
-# ------------------------------------------------------------------- write tools
+# ------------------------------------------------------------------- 写入工具
 
 
 def write_tools(root) -> dict:
@@ -380,7 +380,7 @@ def test_the_registry_reports_which_paths_a_call_touched(tmp_path):
     assert not failed.ok and failed.reads == ["missing.txt"]
 
 
-# ---------------------------------------------- read-before-write (optimistic)
+# ---------------------------------------------- 写前必读（乐观并发）
 
 
 def test_appending_to_a_file_this_run_never_saw_is_refused(tmp_path):
@@ -408,7 +408,7 @@ def test_a_file_that_changed_after_it_was_read_is_refused(tmp_path):
     read_file, _ = make_file_tools(box)
     read_file.func("a.txt")
 
-    (tmp_path / "a.txt").write_text("v2\n", encoding="utf-8")  # somebody else wrote it
+    (tmp_path / "a.txt").write_text("v2\n", encoding="utf-8")  # 别人把它改了
 
     with pytest.raises(PermissionError, match="changed after you read it"):
         write_tools(box)["edit_file"].func("a.txt", "v2", "v3")

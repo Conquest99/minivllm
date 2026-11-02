@@ -40,7 +40,7 @@ def test_single_tool_call_then_answer():
     assert result.num_tool_errors == 0
     assert len(result.steps) == 2
 
-    # the observation really reached the model on the second turn
+    # 第二轮时，观察确实送到了模型手上
     second_turn = backend.requests[1]
     assert any(m.role is Role.TOOL and "43" in m.content for m in second_turn)
 
@@ -92,7 +92,7 @@ def test_tool_error_is_fed_back_so_the_model_can_recover():
     def decide(messages):
         observations = [m.content for m in messages if m.role is Role.TOOL]
         if not observations:
-            return tool_call("calculator", expr="2+2")  # wrong argument name
+            return tool_call("calculator", expr="2+2")  # 参数名写错
         assert "unexpected argument" in observations[0]
         return tool_call("calculator", expression="2+2")
 
@@ -130,7 +130,7 @@ def test_identical_calls_trip_the_loop_guard():
 
     assert result.stopped_reason is StopReason.LOOP_DETECTED
     assert "identical arguments" in result.answer
-    assert len(result.steps) == 3  # third identical call is what trips it
+    assert len(result.steps) == 3  # 第三次完全相同的调用才会触发它
 
 
 def test_different_arguments_do_not_trip_the_loop_guard():
@@ -212,7 +212,7 @@ def test_on_step_callback_streams_the_trace():
     assert all(isinstance(s.summary(), str) for s in seen)
 
 
-# ------------------------------------------------------- serialising write calls
+# ------------------------------------------------------- 串行化写入调用
 
 
 def test_only_one_modifying_call_runs_per_turn():
@@ -232,7 +232,7 @@ def test_only_one_modifying_call_runs_per_turn():
     backend = ScriptedBackend(
         [
             tool_call("save", path="a.txt") + tool_call("save", path="b.txt"),
-            tool_call("save", path="b.txt"),  # the deferred write, one turn later
+            tool_call("save", path="b.txt"),  # 被推迟的写入，晚一轮执行
             "done",
         ]
     )
@@ -275,7 +275,7 @@ def test_max_mutating_calls_can_be_raised_to_reproduce_the_bug():
     assert executed == ["a.txt", "b.txt"]
 
 
-# ------------------------------------------------ answers must match the state
+# ------------------------------------------------ 答案必须与磁盘状态一致
 
 
 def test_an_answer_that_claims_a_failed_write_is_rejected():
@@ -291,9 +291,9 @@ def test_an_answer_that_claims_a_failed_write_is_rejected():
 
     backend = ScriptedBackend(
         [
-            tool_call("save", path="a.txt"),  # fails
-            "I saved it.",  # a claim the loop knows is false
-            tool_call("save", path="a.txt"),  # retried, succeeds
+            tool_call("save", path="a.txt"),  # 失败
+            "I saved it.",  # 一个循环知道是假的说法
+            tool_call("save", path="a.txt"),  # 重试，成功
             "Saved.",
         ]
     )
@@ -319,7 +319,7 @@ def test_a_write_that_is_never_retried_is_not_reported_as_success():
     assert not result.succeeded
 
 
-# ------------------------------------------------ write, then read back (grounding)
+# ------------------------------------------------ 写完，然后读回（接地）
 
 
 def answering_model():
@@ -343,7 +343,7 @@ def test_an_answer_about_a_changed_file_must_be_preceded_by_a_read_back():
     backend = ScriptedBackend(
         [
             tool_call("save", path="todo.txt"),
-            "The second line is now 'walk the dog at 7am'.",  # never looked at the file
+            "The second line is now 'walk the dog at 7am'.",  # 从来没看过这个文件
             tool_call("load", path="todo.txt"),
             "The file says: buy milk / walk the dog / write report.",
         ]

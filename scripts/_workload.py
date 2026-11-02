@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-# A grab-bag of prompts with very different lengths, like a real chat server sees.
+# 一堆长度差异很大的 prompt，就像真实的对话服务器看到的那样。
 PROMPTS = [
     "Hi",
     "What is paged attention?",

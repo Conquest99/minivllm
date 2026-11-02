@@ -34,8 +34,8 @@ def _detect_gqa_support() -> bool:
     return True
 
 
-# ``enable_gqa`` landed in torch 2.5: it lets SDPA broadcast 2 KV heads over 14
-# query heads internally instead of us materialising a 7x larger tensor.
+# ``enable_gqa`` 在 torch 2.5 出现：它让 SDPA 内部把 2 个 KV head 广播到 14 个
+# query head，而不是由我们物化一个 7 倍大的张量。
 _SDPA_SUPPORTS_GQA = _detect_gqa_support()
 
 
@@ -97,8 +97,8 @@ def copy_blocks(
         num_slots *= dim
     flat_k = k_cache.reshape(-1, num_slots, *k_cache.shape[-2:])
     flat_v = v_cache.reshape(-1, num_slots, *v_cache.shape[-2:])
-    # advanced indexing on the right-hand side already materialises a copy, so the
-    # in-place scatter is safe even when src and dst overlap
+    # 右侧的高级索引已经物化出副本，所以就地 scatter
+    # 即使 src 和 dst 重叠也是安全的
     flat_k[:, dst_slots] = flat_k[:, src_slots]
     flat_v[:, dst_slots] = flat_v[:, src_slots]
 
@@ -158,8 +158,8 @@ def paged_attention_decode(
     gather_index, valid = build_gather_index(block_tables, kv_lens, k_cache.shape[-3], dummy_slot)
     k, v = gather_kv(k_cache, v_cache, gather_index)  # [B, L, kv_heads, D]
 
-    q = query.unsqueeze(2)  # [B, H, 1, D], one query token per sequence
-    # bool mask: [B, 1, 1, L] -- True means "may attend"
+    q = query.unsqueeze(2)  # [B, H, 1, D]，每条序列一个 query token
+    # bool 掩码: [B, 1, 1, L] —— True 表示「允许注意」
     mask = valid[:, None, None, :]
     out = _sdpa(q, k.transpose(1, 2), v.transpose(1, 2), mask, scale)
     return out.transpose(1, 2).reshape(batch, num_heads * head_dim)
@@ -204,10 +204,10 @@ def paged_attention_prefill(
         flat_idx = (block_tables[i, :n_blocks, None] * block_size + offsets[None, :]).reshape(-1)[:kv_len]
         k, v = _gather(flat_k, flat_v, flat_idx)  # [kv_len, kv_heads, D]
 
-        # causal mask, with this query block sitting at the END of the KV prefix
+        # 因果掩码，这个 query 块位于 KV 前缀的末尾
         q_pos = torch.arange(kv_len - q_len, kv_len, device=query.device)[:, None]
         kv_pos = torch.arange(kv_len, device=query.device)[None, :]
-        mask = kv_pos <= q_pos  # [q_len, kv_len], True = may attend
+        mask = kv_pos <= q_pos  # [q_len, kv_len]，True = 允许注意
 
         out = _sdpa(
             q_i.unsqueeze(0).transpose(1, 2),  # [1, H, q_len, D]

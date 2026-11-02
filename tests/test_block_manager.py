@@ -55,7 +55,7 @@ def test_growth_allocates_only_when_crossing_a_boundary():
     bm.allocate(seq, 4)
     seq.num_computed_tokens = 4
 
-    for n in range(5, 9):  # tokens 5..8 still fit in page 0
+    for n in range(5, 9):  # token 5..8 仍然装在第 0 页里
         assert bm.ensure_capacity(seq, n) == []
         assert len(seq.block_table) == 1
 
@@ -65,12 +65,12 @@ def test_growth_allocates_only_when_crossing_a_boundary():
 
 def test_prefix_cache_shares_blocks():
     bm = BlockManager(num_blocks=16, block_size=4, enable_prefix_caching=True)
-    first = make_seq(1, tokens(1, 8))  # tokens 1000..1007 -> 2 full blocks
+    first = make_seq(1, tokens(1, 8))  # token 1000..1007 -> 2 个满块
     bm.allocate(first, 8)
     first.num_computed_tokens = 8
     bm.register_computed_blocks(first)
 
-    second = make_seq(2, first.prompt_token_ids[:6])  # shares the first full block only
+    second = make_seq(2, first.prompt_token_ids[:6])  # 只共享第一个满块
     assert bm.match_prefix(second.data) == first.block_table[:1]
 
     matched = bm.allocate(second, 6)
@@ -80,7 +80,7 @@ def test_prefix_cache_shares_blocks():
 
     bm.free(first)
     assert bm.blocks[second.block_table[0]].ref_count == 1
-    # still alive -> not evictable
+    # 还活着 -> 不可逐出
     assert bm.num_free_blocks == 16 - 2
 
 
@@ -98,7 +98,7 @@ def test_prefix_cache_disabled_ignores_matches():
 
 def test_copy_on_write_after_fork():
     bm = BlockManager(num_blocks=16, block_size=4, enable_prefix_caching=False)
-    parent = make_seq(1, tokens(1, 6))  # 1 full block + 1 partial
+    parent = make_seq(1, tokens(1, 6))  # 1 个满块 + 1 个半块
     bm.allocate(parent, 6)
     parent.num_computed_tokens = 6
 
@@ -114,9 +114,9 @@ def test_copy_on_write_after_fork():
     assert dst == child.block_table[1] != parent.block_table[1]
     assert bm.blocks[src].ref_count == 1
 
-    # once the child has detached, the parent is the sole owner of its block and
-    # writes into it without another copy -- paying one copy per divergence, not
-    # one per owner.
+    # 子序列一旦分离，父序列就是它那块 block 的唯一持有者，
+    # 写进去不再需要复制 —— 每次分叉只付一次复制的代价，
+    # 而不是每个持有者各付一次。
     assert bm.ensure_capacity(parent, 7) == []
 
 
@@ -129,12 +129,12 @@ def test_eviction_drops_cache_entry():
     assert len(bm.hash_to_block) == 2
 
     bm.free(first)
-    assert len(bm.hash_to_block) == 2  # cached while idle
+    assert len(bm.hash_to_block) == 2  # 空闲时被缓存
     assert bm.num_free_blocks == 2
 
     other = make_seq(2, tokens(9, 4))
     bm.allocate(other, 4)
-    assert len(bm.hash_to_block) == 1  # one entry got evicted to serve the allocation
+    assert len(bm.hash_to_block) == 1  # 为了这次分配，有一个条目被逐出了
 
 
 def test_no_double_free():
@@ -142,5 +142,5 @@ def test_no_double_free():
     seq = make_seq(1, tokens(1, 4))
     bm.allocate(seq, 4)
     bm.free(seq)
-    bm.free(seq)  # idempotent: the block table is already empty
+    bm.free(seq)  # 幂等：block 表本来就是空的
     assert bm.num_free_blocks == 4

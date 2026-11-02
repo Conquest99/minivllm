@@ -54,7 +54,7 @@ def scripted_backend_with_error() -> CallableBackend:
     def decide(messages):
         observations = [m.content for m in messages if m.role is Role.TOOL]
         if not observations:
-            return tool_call("calculator", expr="23 * 7")  # wrong: should be `expression`
+            return tool_call("calculator", expr="23 * 7")  # 错的：应该是 `expression`
 
         last = observations[-1]
         if "unexpected argument" in last:

@@ -25,7 +25,7 @@ class Role(str, Enum):
     ASSISTANT = "assistant"
     TOOL = "tool"
 
-    def __str__(self) -> str:  # so f"{role}" prints "user", not "Role.USER"
+    def __str__(self) -> str:  # 让 f"{role}" 打印 "user"，而不是 "Role.USER"
         return self.value
 
 

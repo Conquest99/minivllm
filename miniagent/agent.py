@@ -106,7 +106,7 @@ class Agent:
         self.on_step = on_step
         self.trace: list[Step] = []
 
-    # ------------------------------------------------------------------ helpers
+    # ------------------------------------------------------------------ 辅助方法
     @property
     def tool_schemas(self) -> list[dict]:
         return self.tools.schemas()
@@ -136,7 +136,7 @@ class Agent:
     def _finish(self, **kwargs) -> AgentResult:
         return AgentResult(**kwargs)
 
-    # --------------------------------------------------------------------- run
+    # --------------------------------------------------------------------- 主循环
     def run(self, question: str) -> AgentResult:
         started = time.perf_counter()
         messages: list[Message] = [
@@ -170,6 +170,7 @@ class Agent:
                 reply = self.backend.complete(
                     messages, tools=self.tool_schemas or None, max_tokens=self.max_tokens
                 )
+                print(f"DEBUG: backend reply: {reply}")
             except Exception as exc:
                 step = Step(index=index, assistant_text="", parse_errors=[f"backend: {exc}"])
                 step.duration_s = time.perf_counter() - step_started
@@ -185,9 +186,9 @@ class Agent:
                 parse_errors=parsed.errors,
             )
 
-            # --- the model answered in prose: done -- unless a file change it
-            # attempted never happened, or a file it changed was never read back.
-            # In both cases the prose describes state the loop cannot vouch for.
+            # --- 模型直接给了散文：完成 —— 除非它尝试的文件改动没有发生，
+            # 或者它改过的文件从未被读回。
+            # 这两种情况下，这段散文描述的状态是循环无法担保的。
             if not parsed.calls and not parsed.errors:
                 step.duration_s = time.perf_counter() - step_started
 
@@ -219,7 +220,7 @@ class Agent:
                     reason = StopReason.FINAL_ANSWER
                 return result(parsed.text.strip() or reply.strip(), reason)
 
-            # --- unusable tool call: hand the error back and let it retry
+            # --- 无法使用的工具调用：把错误交还回去，让它重试
             if not parsed.calls:
                 parse_errors += len(parsed.errors)
                 step.duration_s = time.perf_counter() - step_started
@@ -236,7 +237,7 @@ class Agent:
                     )
                 continue
 
-            # --- execute every call, feed every result back
+            # --- 执行每一个调用，回灌每一条结果
             messages.append(Message(Role.ASSISTANT, parsed.text, tool_calls=parsed.calls))
             mutations = 0
             for call in parsed.calls:
@@ -244,8 +245,8 @@ class Agent:
                 if tool is not None and tool.mutates:
                     mutations += 1
                     if mutations > self.max_mutating_calls:
-                        # The model planned this write before seeing the previous
-                        # result, so running it now is a blind write on stale state.
+                        # 模型在看到上一条结果之前就规划了这次写入，
+                        # 所以现在执行它是对陈旧状态的盲写。
                         skipped = ToolResult(
                             call_id=call.call_id,
                             name=call.name,
@@ -264,16 +265,16 @@ class Agent:
                 tool_result = self.tools.execute(call)
                 step.tool_results.append(tool_result)
                 messages.append(Message(Role.TOOL, tool_result.to_observation(), name=tool_result.name))
-                # Re-observing is not a loop: reading the same file again is exactly
-                # what the read-back rule asks for.  Only repeated *actions* count.
+                # 重新观察不算循环：再读一次同一个文件，正是「改后必读」所要求的。
+                # 只有重复的「动作」才计数。
                 if tool is None or tool.reads is None:
                     seen[call.key()] += 1
 
-            # what the next turn must not be allowed to talk away
+            # 下一轮不允许被糊弄过去的事实
             failed_writes = [r for r in step.tool_results if not r.ok and self._mutates(r.name)]
             for tool_result in step.tool_results:
                 for path in tool_result.reads:
-                    # a failed read discharges the duty too: "it is gone" is a fact
+                    # 读失败也算看过：「文件已经没了」是一个事实
                     dirty.pop(path, None)
                 if tool_result.ok:
                     for path in tool_result.affects:

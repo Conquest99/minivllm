@@ -268,13 +268,13 @@ def _parse(parser: argparse.ArgumentParser) -> argparse.Namespace:
         if hit:
             parser.error(f"unrecognized argument {name!r}; did you mean {hit[0]!r}?")
     parser.error(f"unrecognized arguments: {' '.join(unknown)}")
-    raise AssertionError("unreachable")  # parser.error exits
+    raise AssertionError("unreachable")  # parser.error 会退出
 
 
 def main() -> None:
-    # allow_abbrev=False: with the default, `--max-row 1` silently abbreviates to
-    # --max-rows and a typo takes effect without complaint.  Same rule as everywhere
-    # else in this repo -- a wrong name must fail loudly.
+    # allow_abbrev=False：默认情况下 `--max-row 1` 会被静默缩写成
+    # --max-rows，打错字照样生效。和这个仓库其它地方同一条规矩 ——
+    # 名字写错就必须大声失败。
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument(
         "--backend",
@@ -361,10 +361,10 @@ def main() -> None:
     )
     sandbox = SQLSandbox(connect, policy)
 
-    # --explore needs no model at all, so it comes before the backend is built:
-    # otherwise `--explore --backend local` would load 1 GB of weights to print a schema.
+    # --explore 完全不需要模型，所以它放在构造后端之前：
+    # 否则 `--explore --backend local` 会先加载 1 GB 权重，只为打印一份 schema。
     if args.explore:
-        sandbox.connection()  # apply the read-only guard before reporting it
+        sandbox.connection()  # 报告只读状态之前，先让它真的生效
         print(f"database : {label}")
         print(f"read-only: {sandbox.read_only_state}")
         try:

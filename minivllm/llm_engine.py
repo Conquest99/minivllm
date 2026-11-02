@@ -79,7 +79,7 @@ class LLMEngine:
         self._outputs: dict[int, RequestOutput] = {}
         self.metrics = EngineMetrics()
 
-    # ------------------------------------------------------------- requests
+    # ------------------------------------------------------------- 请求
     def _encode_prompt(self, prompt: str) -> list[int]:
         if self.cfg.use_chat_template and getattr(self.tokenizer, "chat_template", None):
             text = self.tokenizer.apply_chat_template(
@@ -108,7 +108,7 @@ class LLMEngine:
         self.scheduler.add(seq)
         return seq.seq_id
 
-    # ----------------------------------------------------------------- step
+    # ----------------------------------------------------------------- 单步
     def step(self) -> list[RequestOutput]:
         t0 = time.perf_counter()
         sched_out = self.scheduler.schedule()
@@ -134,7 +134,7 @@ class LLMEngine:
         for row, (seq, n) in enumerate(zip(seqs, new_tokens, strict=False)):
             seq.num_computed_tokens += n
             if seq.num_computed_tokens < len(seq.data):
-                continue  # this was a prefill chunk, no logits were materialised yet
+                continue  # 这是一段 prefill 分块，还没有物化任何 logits
 
             params = seq.sampling_params
             token_id = sample(logits[row], params, self.generator)
@@ -177,7 +177,7 @@ class LLMEngine:
         self._outputs.clear()
         return out
 
-    # ------------------------------------------------------------- generate
+    # ------------------------------------------------------------- 生成
     def generate(self, prompts: list[str], params: SamplingParams | None = None) -> list[RequestOutput]:
         """Run to completion and return one output per prompt, in input order."""
         t0 = time.perf_counter()
@@ -189,7 +189,7 @@ class LLMEngine:
         self.metrics.wall_time += time.perf_counter() - t0
         return [done[i] for i in ids]
 
-    # ---------------------------------------------------------------- stats
+    # ---------------------------------------------------------------- 统计
     def stats(self) -> dict[str, float]:
         s = self.block_manager.stats()
         s.update(

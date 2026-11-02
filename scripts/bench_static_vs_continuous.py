@@ -110,7 +110,7 @@ def run_hf(engine: LLMEngine, workload: list[dict], batch_size: int) -> dict:
         "wall_time": wall,
         "useful_tokens": sum(c["max_tokens"] for c in workload),
         "generated_tokens": generated,
-        # HF does not stream, so a caller sees nothing until the batch is done
+        # HF 不流式，所以整批跑完之前调用方什么都看不到
         "latencies": [wall],
         "ttfts": [wall],
     }

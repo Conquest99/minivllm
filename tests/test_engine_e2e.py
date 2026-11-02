@@ -89,9 +89,9 @@ def test_chunked_prefill_gives_the_same_tokens():
 
 
 def test_prefix_caching_gives_the_same_tokens():
-    # max_num_seqs=1 forces the requests to be admitted one after another: prefix
-    # caching only helps a request that arrives *after* the shared prefix has been
-    # computed and registered, so a batch scheduled all at once cannot hit it.
+    # max_num_seqs=1 让请求一个一个被接纳：前缀缓存只对
+    # 在共享前缀算完并登记 *之后* 才到达的请求有用，所以
+    # 一次性调度进来的整批根本命中不了。
     with_cache = make_engine(enable_prefix_caching=True, max_num_seqs=1)
     without = make_engine(enable_prefix_caching=False, max_num_seqs=1)
     prompts = ["You are a careful assistant. " + p for p in PROMPTS]
@@ -103,8 +103,8 @@ def test_prefix_caching_gives_the_same_tokens():
 
 
 def test_preemption_still_produces_correct_tokens():
-    # 3 blocks per request (48 tokens / 16) but only 4 blocks of pool: the
-    # scheduler must preempt and recompute, and the answer must not change.
+    # 每个请求 3 块（48 token / 16），而池子只有 4 块：
+    # 调度器必须抢占并重算，而答案不能变。
     tight = make_engine(num_gpu_blocks=4, max_num_seqs=3, max_num_batched_tokens=64)
     roomy = make_engine(num_gpu_blocks=64, max_num_seqs=3, max_num_batched_tokens=64)
 

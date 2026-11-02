@@ -53,7 +53,7 @@ def sample(logits: torch.Tensor, params: SamplingParams, generator: torch.Genera
         sorted_logits, sorted_idx = torch.sort(logits, descending=True)
         probs = torch.softmax(sorted_logits, dim=-1)
         cumulative = torch.cumsum(probs, dim=-1)
-        # keep the smallest set whose cumulative probability reaches top_p
+        # 取累计概率达到 top_p 的最小集合
         cutoff = cumulative - probs > params.top_p
         sorted_logits = sorted_logits.masked_fill(cutoff, float("-inf"))
         logits = torch.full_like(logits, float("-inf")).scatter(0, sorted_idx, sorted_logits)

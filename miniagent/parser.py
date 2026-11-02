@@ -90,10 +90,10 @@ def _first(containers: tuple[dict, ...], keys: tuple[str, ...]) -> object | None
 
 def _normalise(obj: dict, raw: str) -> ToolCall:
     """Accept the several key spellings models use and build a ToolCall."""
-    # The OpenAI wire shape nests everything one level down:
-    # {"function": {"name": "add", "arguments": {...}}}.  Unwrap it first: without
-    # this the name is found inside the nested dict while the arguments are looked
-    # up at the top level and silently come out empty.
+    # OpenAI 的线上格式把所有东西都嵌深了一层：
+    # {"function": {"name": "add", "arguments": {...}}}。先解包：否则
+    # name 会在内层 dict 里找到，而 arguments 仍在外层查找，
+    # 于是悄悄变成空。
     source = obj
     for key in _NAME_KEYS:
         if isinstance(obj.get(key), dict):
@@ -102,7 +102,7 @@ def _normalise(obj: dict, raw: str) -> ToolCall:
     containers = (source, obj) if source is not obj else (obj,)
 
     name: object = _first(containers, _NAME_KEYS)
-    if isinstance(name, dict):  # {"name": {"name": "..."}}
+    if isinstance(name, dict):  # 形如 {"name": {"name": "..."}}
         name = name.get("name")
 
     args: object = _first(containers, _ARG_KEYS)
@@ -139,7 +139,7 @@ def parse(text: str) -> ParseResult:
     errors: list[str] = []
     leftover = text
 
-    # 1) explicit <tool_call> tags -- the Qwen2.5 / Hermes convention
+    # 1) 显式的 <tool_call> 标签 —— Qwen2.5 / Hermes 的约定
     for match in _TOOL_TAG.finditer(text):
         block = match.group(1).strip()
         obj = _load_object(block)
@@ -153,7 +153,7 @@ def parse(text: str) -> ParseResult:
     if calls or errors:
         leftover = _TOOL_TAG.sub("", text)
 
-    # 2) fenced ```json blocks
+    # 2) 围栏代码块 ```json
     if not calls and not errors:
         for match in _FENCE.finditer(text):
             block = match.group(1).strip()
@@ -167,14 +167,14 @@ def parse(text: str) -> ParseResult:
         if calls:
             leftover = _FENCE.sub("", text)
 
-    # 3) the whole reply is a JSON object
+    # 3) 整个回复就是一个 JSON 对象
     if not calls and not errors:
         lone = _resolve_lone_json(text.strip())
         if lone:
             calls = lone
             leftover = ""
 
-    # 4) ReAct style
+    # 4) ReAct 风格
     if not calls and not errors:
         match = _REACT.search(text)
         if match:

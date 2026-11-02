@@ -22,7 +22,7 @@ from typing import Any
 
 from miniagent.tools import Tool, tool
 
-# --------------------------------------------------------------------- calculator
+# --------------------------------------------------------------------- 计算器
 
 _BIN_OPS: dict[type, Any] = {
     ast.Add: operator.add,
@@ -111,7 +111,7 @@ def calculator(expression: str) -> str:
     return str(value)
 
 
-# -------------------------------------------------------------------- text stats
+# ------------------------------------------------------------------ 文本统计
 
 
 @tool
@@ -125,7 +125,7 @@ def text_stats(text: str) -> str:
     return f"chars={len(text)} words={len(words)} lines={len(text.splitlines()) or 1}"
 
 
-# --------------------------------------------------------------------- filesystem
+# --------------------------------------------------------------------- 文件系统
 
 
 class Sandbox:
@@ -149,7 +149,7 @@ class Sandbox:
             raise PermissionError(f"{relative!r} resolves outside the sandbox ({self.root})")
         return candidate
 
-    # --- what this run has observed ----------------------------------------
+    # --- 本次运行观察到过什么 ------------------------------------------
     @staticmethod
     def _digest(path: Path) -> str:
         return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -165,7 +165,7 @@ class Sandbox:
     def check_writable(self, path: Path, tool: str) -> None:
         """Refuse to mutate a file this run has not read, or has seen change."""
         if not path.is_file():
-            return  # creating something new is always fine
+            return  # 新建一个文件永远是安全的
         if path not in self._seen:
             raise PermissionError(
                 f"{tool} refuses to modify {path.name}: it already exists and this run has "
@@ -216,7 +216,7 @@ def make_file_tools(sandbox: Sandbox | None = None) -> list[Tool]:
     return [read_file, list_dir]
 
 
-# ------------------------------------------------------------------ write tools
+# ------------------------------------------------------------------ 写入工具
 
 
 def _receipt(target: Path) -> str:

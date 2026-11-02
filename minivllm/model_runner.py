@@ -47,7 +47,7 @@ class ModelRunner:
             .to(self.device)
             .eval()
         )
-        self.model = self.hf_model.model  # embedding + decoder layers + final norm
+        self.model = self.hf_model.model  # embedding + 解码层 + 最后的 norm
         self.lm_head = self.hf_model.lm_head
 
         hf_cfg = self.hf_model.config
@@ -65,7 +65,7 @@ class ModelRunner:
         self.num_gpu_blocks = cfg.num_gpu_blocks or self._profile_num_blocks()
         self._allocate_kv_cache()
 
-    # --------------------------------------------------------------- set-up
+    # --------------------------------------------------------------- 初始化
     def _resolve_eos_ids(self) -> set[int]:
         ids = set()
         eos = self.hf_model.generation_config.eos_token_id
@@ -99,14 +99,14 @@ class ModelRunner:
 
     def _allocate_kv_cache(self) -> None:
         bs, nkv, hd = self.cfg.block_size, self.num_kv_heads, self.head_dim
-        # The pool is one dense tensor per K and V:
+        # KV 池是 K 和 V 各一个稠密张量：
         #   [layers, blocks, block_size, kv_heads, head_dim]
-        # The layer dimension is essential -- every layer owns its own slice of a
-        # block; sharing one slice across layers would mean layer N reads layer
-        # N+1's keys.
-        # +1 extra block at the end is a permanently-zero dummy page.  Padding
-        # slots in a ragged decode batch point at it so the gather index stays
-        # rectangular and the mask can drop them.
+        # 层这一维是必须的 —— 每一层在 block 里拥有属于自己的
+        # 那一片；如果各层共用同一片，就会出现第 N 层读到第
+        # N+1 层 key 的情况。
+        # 末尾多出的 +1 个 block 是一页永远为 0 的哑页。ragged decode
+        # batch 里的 padding 槽位指向它，这样 gather 用的下标
+        # 能保持矩形，再由 mask 把它们丢掉。
         shape = (self.num_layers, self.num_gpu_blocks + 1, bs, nkv, hd)
         self.k_cache = torch.zeros(shape, dtype=self.dtype, device=self.device)
         self.v_cache = torch.zeros(shape, dtype=self.dtype, device=self.device)
@@ -124,7 +124,7 @@ class ModelRunner:
             f"kv_cache={self.kv_cache_bytes / 2**30:.2f}GiB"
         )
 
-    # ------------------------------------------------------------- interface
+    # ------------------------------------------------------------- 接口
     def apply_cow(self, mapping: list[tuple[int, int]]) -> None:
         copy_blocks(self.k_cache, self.v_cache, mapping, self.cfg.block_size)
 
@@ -134,7 +134,7 @@ class ModelRunner:
     def decode(self, token_ids: list[int]) -> str:
         return self.tokenizer.decode(token_ids, skip_special_tokens=True)
 
-    # ---------------------------------------------------------------- inputs
+    # ---------------------------------------------------------------- 输入
     def _build_inputs(self, seqs: list[Sequence], num_new_tokens: list[int]) -> dict[str, torch.Tensor]:
         bs = self.cfg.block_size
         device = self.device
@@ -171,13 +171,13 @@ class ModelRunner:
             "query_lens": torch.tensor(query_lens, dtype=torch.long, device=device),
             "kv_lens": torch.tensor(kv_lens, dtype=torch.long, device=device),
             "last_indices": torch.tensor(last_indices, dtype=torch.long, device=device),
-            # hoisted out of the layer loop: every .item()/.tolist() on a CUDA
-            # tensor is a pipeline stall, and the layer loop runs 24 times
+            # 提到层循环之外：对 CUDA 张量调用 .item()/.tolist() 都会
+            # 造成流水线停顿，而这个层循环要跑 24 次
             "query_lens_list": query_lens,
             "all_decode": all(n == 1 for n in query_lens),
         }
 
-    # --------------------------------------------------------------- forward
+    # --------------------------------------------------------------- 前向
     @torch.inference_mode()
     def execute_model(self, seqs: list[Sequence], num_new_tokens: list[int]) -> torch.Tensor:
         """Run one step.  Returns ``[batch, vocab]`` logits, one row per sequence."""
@@ -204,7 +204,7 @@ class ModelRunner:
         k = attn.k_proj(x).view(num_tokens, self.num_kv_heads, self.head_dim)
         v = attn.v_proj(x).view(num_tokens, self.num_kv_heads, self.head_dim)
 
-        # [num_tokens, heads, head_dim] layout -> broadcast cos/sin along dim 1
+        # [num_tokens, heads, head_dim] 布局 -> 沿 dim 1 广播 cos/sin
         q, k = apply_rotary_pos_emb(q, k, cos, sin, unsqueeze_dim=1)
 
         write_kv_cache(self.k_cache[layer_idx], self.v_cache[layer_idx], inp["slot_mapping"], k, v)

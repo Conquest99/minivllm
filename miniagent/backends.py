@@ -45,7 +45,7 @@ class LLMBackend(Protocol):
     ) -> str: ...
 
 
-# --------------------------------------------------------------------- test doubles
+# ------------------------------------------------------------------ 测试替身
 
 
 class ScriptedBackend:
@@ -91,7 +91,7 @@ class CallableBackend:
         return self._fn(list(messages))
 
 
-# ------------------------------------------------------------------- local minivllm
+# --------------------------------------------------------------- 本地 minivllm
 
 
 DEFAULT_MODEL = Path(__file__).resolve().parents[1] / "models" / "Qwen2.5-0.5B-Instruct"
@@ -131,8 +131,8 @@ class MiniVLLMBackend:
             max_num_seqs=max_num_seqs,
             max_num_batched_tokens=max_num_batched_tokens,
             max_model_len=max_model_len,
-            # The backend applies the chat template itself, because only it can
-            # pass tools= to apply_chat_template.
+            # 由后端自己套 chat template，因为只有它能
+            # 给 apply_chat_template 传 tools=。
             use_chat_template=False,
         )
         self.engine = LLMEngine(cfg)
@@ -160,7 +160,7 @@ class MiniVLLMBackend:
         return self.engine.model_runner.describe()
 
 
-# ------------------------------------------------------------------ OpenAI-compatible
+# ------------------------------------------------------------ OpenAI 兼容接口
 
 
 class OpenAICompatBackend:

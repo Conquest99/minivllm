@@ -66,7 +66,7 @@ def scripted_backend_with_error() -> CallableBackend:
     def decide(messages):
         observations = [m.content for m in messages if m.role is Role.TOOL]
         if not observations:
-            return tool_call("write_lines", path="todo.txt", content="buy milk")  # wrong key
+            return tool_call("write_lines", path="todo.txt", content="buy milk")  # 键名写错
         if "unexpected argument" in observations[-1]:
             return tool_call("write_lines", path="todo.txt", lines=["buy milk"])
         return "I wrote todo.txt with one line."

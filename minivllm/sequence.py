@@ -42,7 +42,7 @@ class Sequence:
     data: list[int] = field(default_factory=list)
     status: SequenceStatus = SequenceStatus.WAITING
 
-    # --- paged KV cache bookkeeping ---
+    # --- 分页 KV cache 记账 ---
     block_table: list[int] = field(default_factory=list)
     """Logical block index -> physical block id.  This list *is* the page table."""
     block_hashes: list[bytes | None] = field(default_factory=list)
@@ -50,7 +50,7 @@ class Sequence:
     num_computed_tokens: int = 0
     """Prefix length whose KV is guaranteed to be in the cache."""
 
-    # --- observability ---
+    # --- 可观测性 ---
     arrival_time: float = field(default_factory=time.perf_counter)
     first_token_time: float | None = None
     finish_time: float | None = None
@@ -60,7 +60,7 @@ class Sequence:
         if not self.data:
             self.data = list(self.prompt_token_ids)
 
-    # ------------------------------------------------------------------ sizes
+    # ------------------------------------------------------------------ 尺寸
     @property
     def num_prompt_tokens(self) -> int:
         return len(self.prompt_token_ids)
@@ -81,7 +81,7 @@ class Sequence:
     def num_blocks_required(self, block_size: int) -> int:
         return (len(self.data) + block_size - 1) // block_size
 
-    # --------------------------------------------------------------- mutation
+    # --------------------------------------------------------------- 变更操作
     def append_token(self, token_id: int) -> None:
         self.data.append(token_id)
 
@@ -89,7 +89,7 @@ class Sequence:
         self.status = status
         self.finish_time = time.perf_counter()
 
-    # ---------------------------------------------------------------- metrics
+    # ---------------------------------------------------------------- 指标
     @property
     def ttft(self) -> float | None:
         """Time to first token (prefill + one decode step)."""

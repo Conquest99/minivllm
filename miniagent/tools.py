@@ -111,7 +111,7 @@ def _param_docs(fn: Callable[..., Any]) -> dict[str, str]:
         if not in_args:
             continue
         if stripped.endswith(":") and " " not in stripped.rstrip(":"):
-            break  # next section header
+            break  # 下一段的标题
         name, sep, desc = stripped.partition(":")
         bare = name.strip()
         if sep and bare and " " not in bare:
@@ -276,9 +276,9 @@ class ToolRegistry:
         t = self.get(call.name)
 
         def fail(message: str) -> ToolResult:
-            # The nudge matters for small models: an error on its own often makes a
-            # 0.5B model give up and apologise instead of retrying with better
-            # arguments.  Nothing happened, so retrying is always safe here.
+            # 这句提示对弱模型很重要：光给一个错误，常常会让
+            # 0.5B 这样的模型道歉收工，而不是换个参数再试一次。
+            # 这里什么都没发生，所以重试永远是安全的。
             return ToolResult(
                 call_id=call.call_id,
                 name=call.name,
@@ -288,8 +288,8 @@ class ToolRegistry:
                 ),
                 error=message,
                 duration_s=time.perf_counter() - started,
-                # a read that failed still counts as having looked: "it is gone" is
-                # an observation, and it must be able to discharge a pending read-back
+                # 读失败也算「看过了」：「文件已经没了」本身就是
+                # 一个观察，它必须能解除待办的读回义务。
                 reads=self._declared_paths(t, call, "reads"),
             )
 
@@ -302,7 +302,7 @@ class ToolRegistry:
 
         try:
             value = t.func(**call.arguments)
-        except Exception as exc:  # a tool bug must not break the agent loop
+        except Exception as exc:  # 工具的 bug 不能把整个 agent 循环带崩
             return fail(f"{type(exc).__name__}: {exc}")
 
         return ToolResult(

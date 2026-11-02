@@ -63,7 +63,7 @@ def tools_of(box) -> dict:
     return {t.name: t for t in make_sql_tools(box)}
 
 
-# ------------------------------------------------------------------ the tools
+# ------------------------------------------------------------------ 工具
 
 
 def test_list_tables(box):
@@ -87,7 +87,7 @@ def test_query_all_rows(box):
 def test_query_selected_columns(box):
     out = tools_of(box)["query_table"].func("users", columns=["name"])
     assert "name" in out
-    assert "status" not in out.split("\n")[1]  # header line only has `name`
+    assert "status" not in out.split("\n")[1]  # 表头只有 `name` 这一列
 
 
 def test_query_with_equality_filter(box):
@@ -131,7 +131,7 @@ def test_query_with_two_conditions_are_anded(box):
 
 def test_query_honours_order_by(box):
     out = tools_of(box)["query_table"].func("users", columns=["name"], order_by="name desc")
-    body = out.splitlines()[3:]  # [0] summary, [1] header, [2] separator
+    body = out.splitlines()[3:]  # [0] 摘要, [1] 表头, [2] 分隔线
     assert body[0].strip().startswith("dave")
 
 
@@ -157,7 +157,7 @@ def test_a_complete_result_does_not_cry_wolf(box):
 
 def test_the_sentinel_row_is_never_shown_to_the_model(box):
     out = tools_of(box)["query_table"].func("users", columns=["name"], limit=1)
-    body = out.splitlines()[3:]  # summary, header, separator, then data rows
+    body = out.splitlines()[3:]  # 摘要、表头、分隔线，之后才是数据行
     assert len(body) == 1
 
 
@@ -176,7 +176,7 @@ def test_null_is_rendered_explicitly(box):
     assert "NULL" in out
 
 
-# ------------------------------------------------------------------- security
+# ------------------------------------------------------------------- 安全
 
 
 @pytest.mark.parametrize(
@@ -328,7 +328,7 @@ def test_policy_rejects_a_nonsense_limit():
         SQLPolicy(max_rows=0)
 
 
-# ------------------------------------------------------ driver-agnostic details
+# ------------------------------------------------------ 与驱动无关的细节
 
 
 def test_placeholder_style_follows_the_driver(db):
@@ -375,7 +375,7 @@ def test_a_name_containing_a_quote_is_still_refused(db):
                 box.build_select(name, None, [], "", 10)
 
 
-# -------------------------------------------------------- registry integration
+# -------------------------------------------------------- 注册表集成
 
 
 def test_errors_from_sql_tools_reach_the_model_as_observations(box):
@@ -438,13 +438,13 @@ def test_the_queries_executed_are_recorded_as_an_audit_trail(box):
 
 def test_the_session_is_put_into_read_only_mode(box):
     names = tools_of(box)
-    names["query_table"].func("users")  # forces the connection open
+    names["query_table"].func("users")  # 强制把连接打开
     assert box.read_only_state == "sqlite query_only"
 
 
 def test_the_server_refuses_a_write_even_if_one_somehow_got_through(box):
     """The session guard, not the builder, is the last line of defence."""
-    box.connection()  # applies PRAGMA query_only
+    box.connection()  # 施加了 PRAGMA query_only
     with pytest.raises(sqlite3.OperationalError, match="readonly database"):
         box.execute("INSERT INTO users (name) VALUES ('mallory')", [])
     _cols, rows = box.execute("SELECT COUNT(*) FROM users", [])

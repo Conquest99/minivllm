@@ -86,7 +86,7 @@ def main() -> None:
             model=args.model,
             dtype=args.dtype,
             block_size=args.block_size,
-            max_num_seqs=1,  # one request at a time: isolate prefill, not queueing
+            max_num_seqs=1,  # 一次只放一个请求：隔离出 prefill，而不是排队效应
             max_model_len=args.max_model_len,
             max_num_batched_tokens=2048,
             enable_prefix_caching=enabled,

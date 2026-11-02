@@ -63,20 +63,20 @@ class BlockManager:
         self.enable_prefix_caching = enable_prefix_caching
 
         self.blocks = [PhysicalBlock(i) for i in range(num_blocks)]
-        # FIFO free list; entries can go stale when a block is *shared* (not
-        # evicted) out of the free list, so ``_in_free`` is the source of truth.
+        # FIFO 空闲表；当某个 block 被 *共享*（而不是被逐出）时，
+        # 表项可能变陈旧，所以 ``_in_free`` 才是唯一事实来源。
         self.free_blocks: Deque[PhysicalBlock] = deque(self.blocks)
         self._in_free = bytearray(b"\x01") * num_blocks
         self._num_free = num_blocks
 
         self.hash_to_block: dict[bytes, int] = {}
 
-        # --- stats ---
+        # --- 统计 ---
         self.num_prefix_hit_blocks = 0
         self.num_cow_ops = 0
         self.peak_used_blocks = 0
 
-    # ------------------------------------------------------------------ stats
+    # ------------------------------------------------------------------ 统计
     @property
     def num_free_blocks(self) -> int:
         return self._num_free
@@ -106,12 +106,12 @@ class BlockManager:
         """Number of leading tokens whose KV is already in the pool and reusable."""
         return len(self.match_prefix(token_ids)) * self.block_size
 
-    # ------------------------------------------------------------ free list
+    # ------------------------------------------------------------- 空闲表
     def _acquire_free_block(self) -> PhysicalBlock:
         while self.free_blocks:
             blk = self.free_blocks.popleft()
             if not self._in_free[blk.block_id]:
-                continue  # stale: the block was handed out through _share()
+                continue  # 陈旧项：这个 block 已经通过 _share() 发出去了
             self._in_free[blk.block_id] = 0
             self._num_free -= 1
             self._evict(blk)
@@ -139,7 +139,7 @@ class BlockManager:
         blk.ref_count += 1
         self.peak_used_blocks = max(self.peak_used_blocks, self.num_used_blocks)
 
-    # -------------------------------------------------------------- hashing
+    # -------------------------------------------------------------- 哈希
     def _block_hash(self, prev_hash: bytes, tokens: tuple[int, ...]) -> bytes:
         h = hashlib.blake2b(digest_size=16)
         h.update(prev_hash)
@@ -164,11 +164,11 @@ class BlockManager:
             if block_id is None:
                 break
             if self.blocks[block_id].tokens != chunk:
-                break  # hash collision guard
+                break  # 哈希碰撞保护
             matched.append(block_id)
         return matched
 
-    # ----------------------------------------------------------- allocation
+    # ----------------------------------------------------------- 分配
     def can_allocate(self, seq: Sequence, num_tokens: int | None = None) -> AllocStatus:
         """Can the prefix cache + free list cover ``num_tokens`` of this sequence?"""
         num_tokens = len(seq.data) if num_tokens is None else num_tokens
@@ -217,9 +217,9 @@ class BlockManager:
         needed = (num_tokens + bs - 1) // bs
         cow_ops: list[tuple[int, int]] = []
 
-        # The first new token may land inside a block we already own.  If that
-        # block is shared (fork / prefix cache) it has to be copied first, or we
-        # would corrupt the other owner's KV.
+        # 第一个新 token 可能落在我们已经拥有的 block 里。如果
+        # 这个 block 是共享的（fork / 前缀缓存），必须先复制，否则
+        # 会把另一个持有者的 KV 写坏。
         idx = seq.num_computed_tokens // bs
         if num_tokens > seq.num_computed_tokens and idx < len(seq.block_table):
             src = seq.block_table[idx]
@@ -250,7 +250,7 @@ class BlockManager:
                 continue
             chunk = tuple(seq.data[i * bs : (i + 1) * bs])
             if blk.tokens and blk.tokens != chunk:
-                # The physical block holds someone else's content: never cache it.
+                # 这个物理 block 里装的是别人的内容：绝不能写进缓存。
                 return
             prev = self._block_hash(prev, chunk)
             blk.block_hash = prev
@@ -284,7 +284,7 @@ class BlockManager:
         for block_id in child.block_table:
             self._share(block_id)
 
-    # -------------------------------------------------------------- analysis
+    # -------------------------------------------------------------- 分析
     def naive_reservation_cost(self, seq: Sequence, max_model_len: int) -> int:
         """Blocks a *non-paged* engine would reserve up front for this sequence."""
         return (max_model_len + self.block_size - 1) // self.block_size

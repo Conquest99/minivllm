@@ -56,11 +56,11 @@ class Scheduler:
         self.waiting: deque[Sequence] = deque()
         self.running: list[Sequence] = []
 
-        # --- stats ---
+        # --- 统计 ---
         self.num_preemptions = 0
         self.peak_running = 0
 
-    # ------------------------------------------------------------- interface
+    # ------------------------------------------------------------- 接口
     def add(self, seq: Sequence) -> None:
         self.waiting.append(seq)
 
@@ -72,7 +72,7 @@ class Scheduler:
         if finished:
             self.running = [seq for seq in self.running if not seq.is_finished]
             for seq in finished:
-                # publish the blocks first: free() clears the block table
+                # 先发布 block：free() 会清空 block 表
                 self.block_manager.register_computed_blocks(seq)
                 self.block_manager.free(seq)
         return finished
@@ -86,7 +86,7 @@ class Scheduler:
             blk.block_hash = None
             blk.tokens = ()
 
-    # ------------------------------------------------------------ scheduling
+    # ------------------------------------------------------------ 调度
     def schedule(self) -> SchedulerOutputs:
         out = SchedulerOutputs()
         budget = self.cfg.max_num_batched_tokens
@@ -125,7 +125,7 @@ class Scheduler:
             try:
                 cow_ops = self.block_manager.ensure_capacity(seq, seq.num_computed_tokens + n)
             except OutOfBlocksError:
-                # Cache is full: sacrifice the youngest sequence.
+                # 缓存满了：牺牲最年轻的序列。
                 victim = running.pop()
                 self.block_manager.free(victim)
                 victim.num_computed_tokens = 0
@@ -146,7 +146,7 @@ class Scheduler:
 
     def _schedule_waiting(self, out: SchedulerOutputs, budget: int) -> None:
         if self.cfg.static_batching and self.running:
-            return  # the current batch must drain completely before refilling
+            return  # 当前批次必须彻底跑空，才允许重新装填
         first_admitted = len(out.scheduled)
 
         while self.waiting and budget > 0 and len(self.running) < self.cfg.max_num_seqs:
@@ -157,8 +157,8 @@ class Scheduler:
                 seq.mark_finished(SequenceStatus.FINISHED_LENGTH_CAPPED)
                 continue
 
-            # A prompt longer than the step budget would monopolise the step; let
-            # it wait until it can be the only thing running (vLLM's behaviour).
+            # 比单步预算还长的 prompt 会独占这一步；
+            # 让它等到可以独占运行再进来（vLLM 的行为）。
             if (
                 self.cfg.long_prefill_token_threshold
                 and seq.num_new_tokens > self.cfg.long_prefill_token_threshold
@@ -169,9 +169,9 @@ class Scheduler:
             if not seq.block_table and self.cfg.enable_prefix_caching:
                 cached = self.block_manager.cached_prefix_tokens(seq.data)
                 if cached:
-                    # The KV for this prefix is already in the pool and correct, so
-                    # the prefill can start after it.  Keep at least one token: the
-                    # logits for the last token are the whole point of the prefill.
+                    # 这段前缀的 KV 已经在池里而且是对的，所以
+                    # prefill 可以从它之后开始。至少保留一个 token：
+                    # 最后一个 token 的 logits 正是 prefill 的全部意义。
                     seq.num_computed_tokens = min(cached, len(seq.data) - 1)
 
             n = self._chunk_size(seq, budget)
@@ -195,8 +195,8 @@ class Scheduler:
         if self.cfg.static_batching:
             batch = [seq for seq, _ in out.scheduled[first_admitted:]]
             if batch:
-                # a static batch shares one deadline: everybody runs as long as the
-                # longest member, which is exactly the waste being measured
+                # 静态批共用一个截止线：所有人都要陪跑
+                # 最长的那个成员，这正是要测量的浪费
                 longest = max(s.sampling_params.max_tokens for s in batch)
                 for seq in batch:
                     seq.sampling_params = replace(seq.sampling_params, max_tokens=longest, ignore_eos=True)

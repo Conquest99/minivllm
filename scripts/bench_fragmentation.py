@@ -57,12 +57,12 @@ def main() -> None:
     )
     lengths = [args.prompt_tokens + w["max_tokens"] for w in workload]
 
-    # ---------------------------------------------------------------- baseline
+    # ---------------------------------------------------------------- 基线
     blocks_per_reservation = (args.max_model_len + bs - 1) // bs
     reserve_concurrency = pool_blocks // blocks_per_reservation
     reserve_used_tokens = reserve_concurrency * args.max_model_len
 
-    # ------------------------------------------------------------------- paged
+    # ------------------------------------------------------------------- 分页
     bm = BlockManager(pool_blocks, bs, enable_prefix_caching=False)
     admitted = 0
     used_tokens = 0
@@ -73,7 +73,7 @@ def main() -> None:
         bm.allocate(seq, n)
         admitted += 1
         used_tokens += n
-    # internal fragmentation: the tail of each request's last block is unusable
+    # 内部碎片：每个请求最后一块的尾巴用不上
     slot_fragmentation = sum((n + bs - 1) // bs * bs - n for n in lengths[:admitted])
 
     report = {

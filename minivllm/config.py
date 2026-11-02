@@ -19,7 +19,7 @@ from dataclasses import dataclass
 
 @dataclass
 class EngineConfig:
-    # --- model ---
+    # --- 模型 ---
     model: str = "Qwen/Qwen2.5-0.5B-Instruct"
     dtype: str = "float16"
     device: str = "cuda"
@@ -27,14 +27,14 @@ class EngineConfig:
     use_chat_template: bool = True
     """Wrap a plain prompt in the model's chat template before tokenizing."""
 
-    # --- KV cache paging ---
+    # --- KV cache 分页 ---
     block_size: int = 16
     num_gpu_blocks: int | None = None
     """Number of physical blocks. ``None`` = size it from free VRAM at startup."""
     gpu_memory_utilization: float = 0.80
     """Fraction of *currently free* VRAM the KV cache may occupy."""
 
-    # --- scheduling ---
+    # --- 调度 ---
     max_num_seqs: int = 8
     """How many sequences may be in the running batch at once."""
     max_num_batched_tokens: int = 1024
@@ -47,11 +47,11 @@ class EngineConfig:
     """0 = never reject a prompt; >0 = a prompt longer than this waits for a
     step where it fits alone (how vLLM avoids one request monopolising a step)."""
 
-    # --- prefix caching ---
+    # --- 前缀缓存 ---
     enable_prefix_caching: bool = True
     """Share full KV blocks between requests that start with the same tokens."""
 
-    # --- benchmarking only ---
+    # --- 仅用于压测 ---
     static_batching: bool = False
     """Emulate a pre-continuous-batching engine: a batch runs until its longest
     member finishes and no new request is admitted before the batch drains.  Used

@@ -263,8 +263,8 @@ class SQLSandbox:
         connect: Callable[[], Any],
         policy: SQLPolicy | None = None,
         *,
-        # TODO(unwired): both are stored below and never read again -- passing them
-        # silently does nothing.  A knob that turns nothing is worse than no knob;
+        # TODO(未接线): 两者都只被存下来，之后再也没有被读过 —— 传它们
+        # 什么也不会发生。一个转了没反应的旋钮比没有旋钮更糟；
         # see docs/miniagent/sql_tools.md ("已知缺口").
         reuse_connection: bool = True,
         statement_timeout_s: float | None = None,
@@ -279,7 +279,7 @@ class SQLSandbox:
         self.read_only_state: str = "not applied"
         """What the server said when asked to go read-only."""
 
-    # ------------------------------------------------------------ connection
+    # ------------------------------------------------------------ 连接
     def connection(self) -> Any:
         if self._conn is not None:
             return self._conn
@@ -324,7 +324,7 @@ class SQLSandbox:
     def __exit__(self, *exc: object) -> None:
         self.close()
 
-    # -------------------------------------------------------------- building
+    # -------------------------------------------------------------- 语句构建
     def _check_table(self, table: str) -> str:
         name = table.strip()
         if not _IDENT.match(name):
@@ -454,7 +454,7 @@ class SQLSandbox:
         )
         return sql, clause.params
 
-    # ------------------------------------------------------------- executing
+    # ------------------------------------------------------------- 执行
     def execute(self, sql: str, params: list[Any]) -> tuple[list[str], list[tuple]]:
         conn = self.connection()
         self.queries.append(sql)
@@ -647,7 +647,7 @@ def make_sql_tools(
     return [list_tables, describe_table, query_table, count_rows]
 
 
-# --------------------------------------------------------------------- connections
+# --------------------------------------------------------------------- 连接
 
 
 def mysql_connector(
@@ -675,8 +675,8 @@ def mysql_connector(
             raise RuntimeError(
                 "pymysql is not installed. Run: uv pip install --python .venv\\Scripts\\python.exe pymysql"
             ) from exc
-        # A dict, not keyword-by-keyword: a caller-supplied charset/autocommit (common
-        # when the config comes from a JSON file) must override, not collide.
+        # 用 dict 而不是逐个关键字参数：调用方自己传的 charset/autocommit
+        # （配置来自 JSON 文件时很常见）应该覆盖默认值，而不是撞车报错。
         options: dict[str, Any] = {
             "host": host,
             "port": port,
