@@ -258,6 +258,131 @@ def decide(messages):
 
 ---
 
+## 7. 设计稿：第七道护栏——证据闭合（尚未实现）
+
+### 触发它的那次实测
+
+`--max-rows 1` 跑「含水小于25」，库里真实匹配 **2 行**：
+
+```text
+--- step 0 ---
+  call   query_table({"where": ["HS < 25"], "limit": 20})
+  -> result 1 row(s) from dba04_cy4 (limit 1; MORE ROWS EXIST -- this is a partial
+     result, call count_rows or narrow the filters)
+           N6-D3-P2126 | 198207 | 24.0
+
+--- step 1 ---
+model: 表格复述（只有那一行）
+stopped : final_answer        ← 系统放行了
+```
+
+**信号已经给出去了，模型没接。** 现有六道护栏全都只管「动作」，没有一道管「结论有没有证据」。于是 1 行被当成了全部答案。
+
+### 为什么不能用字符串嗅探
+
+最省事的写法是：
+
+```python
+if any("MORE ROWS EXIST" in r.content for r in step.tool_results):   # ← 不要这样
+```
+
+这和整份文档反复强调的毛病是同一个：**让上层去猜下层的文本，等于又造了一次「静默约定」**。文案改一个字（哪怕只是把 `MORE` 改成 `MORE ROWS`），护栏就永久失效，而且没有任何测试会红。
+
+**下层要表态，就给它一个字段，而不是给它一句话。**
+
+### 设计
+
+**① `types.py`：两个新东西**
+
+```python
+@dataclass
+class ToolReply:
+    """A tool's result plus facts about the result the text cannot carry."""
+    text: str
+    incomplete: bool = False
+
+
+@dataclass
+class ToolResult:
+    ...
+    incomplete: bool = False
+    """The result is a partial view: more rows exist than were returned."""
+```
+
+**② `tools.py`：`execute` 识别包装类型**
+
+```python
+value = t.func(**call.arguments)
+if isinstance(value, ToolReply):
+    content, incomplete = value.text, value.incomplete
+else:
+    content, incomplete = str(value), False       # 兼容所有现有工具
+```
+
+不改任何已有工具——它们返回 `str`，行为完全不变。
+
+**③ `sql_tools.py`：截断时表态**
+
+```python
+if truncated:
+    return ToolReply(head + _format_table(names, rows, box.policy), incomplete=True)
+return head + _format_table(names, rows, box.policy)
+```
+
+**④ `agent.py`：形状和现有的 `dirty` 完全一致**
+
+```python
+pending_partial: dict[str, None] = {}    # key = 未消解的不完整结果
+partial_retries = 0
+
+# 每步结束后
+for tool_result in step.tool_results:
+    if tool_result.incomplete:
+        pending_partial[f"{call.name}:{table}"] = None
+    elif clears_partial(call, tool_result):      # 同一 (table, where) 上 count 成功
+        pending_partial.clear()
+
+# 模型想收工时
+if pending_partial and partial_retries < self.max_partial_retries:
+    partial_retries += 1
+    step.notes.append("answer rejected: a truncated result was never resolved")
+    messages.append(Message(Role.ASSISTANT, reply))
+    messages.append(Message(Role.USER, self._partial_hint(list(pending_partial))))
+    continue
+```
+
+**⑤ 三种结局，都比现在好**
+
+| 模型行为 | 结果 |
+|---|---|
+| 被驳回后去调 `count_rows` | 拿到 2 → 正确作答 |
+| 被驳回后仍然不查 | 重试用尽 → `stopped: unverified`，`verdict` 明说「答案不完整」 |
+| 完全不理会（复读同一句） | `max_identical_calls` 先触发 → `loop_detected` |
+
+**没有一种结局是「自信地给出 1 行」。**
+
+### 要补的测试（约 8 个）
+
+- 截断时 `ToolResult.incomplete is True`
+- 未截断时是 `False`（不能狼来了）
+- `ToolReply` 之外的返回值仍然 `str()`（兼容性）
+- 模型无视截断就想收工 → 被驳回，且 `step.notes` 记录了原因
+- 驳回后模型调用 `count_rows` → 允许收工
+- 重试用尽 → `stopped_reason == UNVERIFIED`
+- 文案改了（模拟「把 MORE ROWS 改成别的」）**不影响**护栏（证明没有依赖字符串）
+
+最后那条是核心：**它锁住的不是行为，而是「行为不依赖文案」这件事。**
+
+### 这一层的意义
+
+前六道护栏管的是**动作**（别循环、别盲写、改完要读）。这一道管的是**结论**：
+
+> 你要说的这句话，有没有证据支撑？没有就不许说。
+
+**提示词是建议，护栏是制度。** 制度的效果不依赖对方是否配合——这正是弱模型场景下唯一能指望的东西。
+
+---
+
 ## 用到的 Python 特性
 
 | 特性 | 说明 |
