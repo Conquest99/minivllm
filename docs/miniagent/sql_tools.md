@@ -356,6 +356,19 @@ Run: uv pip install --python .venv\Scripts\python.exe pymysql
 
 受限账号可能没有 `SET SESSION` 权限，但它本身就是只读的。这时中断反而让工具不可用。状态记在 `read_only_state` 里，需要严格的场景自己断言它等于 `"READ ONLY"`。
 
+### 已知缺口：两个声明了却没接上的参数
+
+`SQLSandbox.__init__` 里的 `reuse_connection` 和 `statement_timeout_s` **被保存下来，但从没被读过**：
+
+| 参数 | 期望语义 | 实际行为 |
+|---|---|---|
+| `reuse_connection=True` | `False` 时每次查询新建连接 | `connection()` 只判断 `_conn is not None`，永远是复用 |
+| `statement_timeout_s=None` | 超时中断查询 | 没有任何地方引用 |
+
+传它们不会报错，也不会有任何效果——**静默无效**。这和本文件反复强调的原则正好相反：一个转了没反应的旋钮，比没有这个旋钮更糟，因为使用者会以为自己设了保护。
+
+目前刻意保留（不删也不实现），当作一个反面素材：读代码时看到"参数存了但没人用"，就该把它当成 bug 而不是功能。真要补的话，`statement_timeout_s` 在 MySQL 上走 `SET SESSION MAX_EXECUTION_TIME=ms`，sqlite 上得用 `set_progress_handler` 主动中断，两边语义并不对称——这也是它当初被搁置的原因。
+
 ---
 
 ## 常见误解

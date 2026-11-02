@@ -263,6 +263,9 @@ class SQLSandbox:
         connect: Callable[[], Any],
         policy: SQLPolicy | None = None,
         *,
+        # TODO(unwired): both are stored below and never read again -- passing them
+        # silently does nothing.  A knob that turns nothing is worse than no knob;
+        # see docs/miniagent/sql_tools.md ("已知缺口").
         reuse_connection: bool = True,
         statement_timeout_s: float | None = None,
     ) -> None:
