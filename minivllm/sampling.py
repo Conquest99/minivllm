@@ -38,7 +38,7 @@ class SamplingParams:
 
 @torch.inference_mode()
 def sample(logits: torch.Tensor, params: SamplingParams, generator: torch.Generator | None = None) -> int:
-    """Pick one token id from a 1-D ``[vocab]`` logits tensor."""
+    """从一个一维 ``[vocab]`` logits 张量里挑出一个 token id。"""
     if params.greedy:
         return int(torch.argmax(logits).item())
 

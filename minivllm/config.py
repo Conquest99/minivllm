@@ -67,5 +67,5 @@ class EngineConfig:
 
     @property
     def max_blocks_per_seq(self) -> int:
-        """Width of the block-table tensor: ceil(max_model_len / block_size)."""
+        """block 表张量的宽度：ceil(max_model_len / block_size)。"""
         return (self.max_model_len + self.block_size - 1) // self.block_size

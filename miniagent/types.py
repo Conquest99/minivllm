@@ -29,7 +29,7 @@ class Role(str, Enum):
 
 @dataclass
 class ToolCall:
-    """A request from the model to run a named tool with JSON arguments."""
+    """模型发出的、用 JSON 参数运行某个具名工具的请求。"""
 
     name: str
     arguments: dict[str, Any] = field(default_factory=dict)
@@ -38,7 +38,7 @@ class ToolCall:
     """The exact text the model produced, kept for tracing and debugging."""
 
     def key(self) -> str:
-        """Stable identity of (name, arguments) -- used to detect repeated calls."""
+        """(name, arguments) 的稳定标识 —— 用来检测重复调用。"""
         return f"{self.name}:{json.dumps(self.arguments, sort_keys=True, ensure_ascii=False)}"
 
 
@@ -56,11 +56,10 @@ class ToolResult:
     """Paths this call observed -- what discharges the read-back duty."""
 
     def to_observation(self) -> str:
-        """What the model is allowed to see.
+        """模型被允许看到的东西。
 
-        Qwen's chat template drops the tool name and the call id, so the name is
-        repeated inside the body -- otherwise a model that called two tools in one
-        step cannot tell which result belongs to which call.
+        Qwen 的 chat template 会丢掉工具名和调用 id，所以名字在正文里重复一次 —— 否则一步里
+        调了两个工具的模型分不清哪条结果属于哪个调用。
         """
         return f"[{self.name}] {self.content}"
 
@@ -74,7 +73,7 @@ class Message:
     """Set on ``role=TOOL`` messages so traces can show who produced the result."""
 
     def to_hf(self) -> dict[str, Any]:
-        """Render as the dict shape ``apply_chat_template`` expects."""
+        """渲染成 ``apply_chat_template`` 期望的 dict 形状。"""
         if self.role is Role.ASSISTANT and self.tool_calls:
             return {
                 "role": "assistant",
@@ -111,7 +110,7 @@ class StopReason(str, Enum):
 
 @dataclass
 class Step:
-    """One model turn plus every tool call it triggered."""
+    """一次模型回合，加上它触发的全部工具调用。"""
 
     index: int
     assistant_text: str = ""

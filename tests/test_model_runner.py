@@ -62,7 +62,7 @@ def test_incremental_decode_matches_transformers(runner):
 
 
 def test_chunked_prefill_matches_single_shot(runner):
-    """Splitting a prompt across steps must not change the logits."""
+    """把一个 prompt 拆到多步里跑，logits 不许变。"""
     ids = runner.tokenize("Explain in one sentence why paged attention avoids memory fragmentation.")
 
     cache = BlockManager(runner.num_gpu_blocks, runner.cfg.block_size, enable_prefix_caching=False)
@@ -86,7 +86,7 @@ def test_chunked_prefill_matches_single_shot(runner):
 
 
 def test_ragged_batch_matches_individual_runs(runner):
-    """A batch of sequences with different lengths must equal running them alone."""
+    """一批长短不齐的序列，结果必须等于一条条单独跑。"""
     cache = BlockManager(runner.num_gpu_blocks, runner.cfg.block_size, enable_prefix_caching=False)
     prompts = [
         "Hello",
@@ -102,7 +102,7 @@ def test_ragged_batch_matches_individual_runs(runner):
 
 
 def test_prefill_and_decode_can_share_a_batch(runner):
-    """The mixed batch that static batching cannot express."""
+    """那个静态批根本表达不出来的混合批。"""
     cache = BlockManager(runner.num_gpu_blocks, runner.cfg.block_size, enable_prefix_caching=False)
 
     warm = make(cache, 0, runner.tokenize("Once upon a time"))

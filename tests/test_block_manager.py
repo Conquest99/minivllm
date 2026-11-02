@@ -32,7 +32,7 @@ def test_allocate_and_free_returns_blocks():
 
 
 def test_allocation_is_lazy_not_reserved():
-    """A 10-token request takes 3 pages of 4 -- not ceil(max_model_len / 4) pages."""
+    """一个 10 token 的请求占 3 页（每页 4 个），而不是 ceil(max_model_len / 4) 页。"""
     bm = BlockManager(num_blocks=64, block_size=4, enable_prefix_caching=False)
     seq = make_seq(1, tokens(1, 10))
     bm.allocate(seq, 10)

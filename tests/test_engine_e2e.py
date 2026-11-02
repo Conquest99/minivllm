@@ -69,7 +69,7 @@ def test_batched_output_matches_solo_output(engine):
 
 
 def test_small_batch_budget_changes_nothing(engine):
-    """max_num_seqs=1 serialises everything; the tokens must still match."""
+    """max_num_seqs=1 把一切串行化；token 结果必须仍然一致。"""
     engine.cfg.max_num_seqs = 1
     try:
         serial = [o.token_ids for o in engine.generate(PROMPTS, greedy(6))]

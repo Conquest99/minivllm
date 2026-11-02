@@ -20,7 +20,7 @@ from minivllm.paged_attention import (
 
 
 def dense_attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, scale: float) -> torch.Tensor:
-    """Reference: ``q`` [Lq, H, D], ``k``/``v`` [Lk, Hkv, D], causal."""
+    """参照实现：``q`` [Lq, H, D]，``k``/``v`` [Lk, Hkv, D]，因果掩码。"""
     lq, heads, _ = q.shape
     lk = k.shape[0]
     reps = heads // k.shape[1]
@@ -35,7 +35,7 @@ def dense_attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, scale: fl
 
 
 class PagedCache:
-    """Test harness: a block pool plus the ground-truth K/V per sequence."""
+    """测试脚手架：一个块池，加上每条序列的 ground-truth K/V。"""
 
     def __init__(self, num_blocks: int, block_size: int, kv_heads: int, head_dim: int, seed: int = 0):
         torch.manual_seed(seed)
@@ -114,7 +114,7 @@ def test_decode_matches_dense_for_ragged_batch():
 
 
 def test_prefill_matches_dense():
-    """Chunked prefill: the query block sits at the end of an already-cached prefix."""
+    """分块 prefill：这个 query 块落在已经缓存好的前缀末尾。"""
     kv_heads, heads, head_dim = 2, 4, 8
     cache = PagedCache(num_blocks=16, block_size=4, kv_heads=kv_heads, head_dim=head_dim)
 

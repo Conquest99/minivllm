@@ -24,7 +24,7 @@ import torch.nn.functional as F
 
 
 def _detect_gqa_support() -> bool:
-    """Feature-probe rather than guess: SDPA is a builtin, so it has no signature."""
+    """用特性探测代替猜测：SDPA 是内建函数，没有签名可看。"""
     try:
         q = torch.zeros(1, 2, 1, 4)
         kv = torch.zeros(1, 1, 1, 4)
@@ -40,7 +40,7 @@ _SDPA_SUPPORTS_GQA = _detect_gqa_support()
 
 
 def _sdpa(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: torch.Tensor, scale: float):
-    """``q``: [.., heads, len_q, dim], ``k``/``v``: [.., kv_heads, len_kv, dim]."""
+    """``q``: [.., heads, len_q, dim]，``k``/``v``: [.., kv_heads, len_kv, dim]。"""
     if k.shape[-3] == q.shape[-3]:
         return F.scaled_dot_product_attention(q, k, v, attn_mask=mask, scale=scale)
     if _SDPA_SUPPORTS_GQA:
@@ -62,7 +62,7 @@ def write_kv_cache(
     key: torch.Tensor,
     value: torch.Tensor,
 ) -> None:
-    """Scatter ``key``/``value`` (``[num_tokens, num_kv_heads, head_dim]``) into the cache."""
+    """把 ``key``/``value``（``[num_tokens, num_kv_heads, head_dim]``）散射进 cache。"""
     flat_k = k_cache.view(-1, *k_cache.shape[2:])
     flat_v = v_cache.view(-1, *v_cache.shape[2:])
     flat_k[slot_mapping] = key
@@ -75,13 +75,12 @@ def copy_blocks(
     mapping: list[tuple[int, int]],
     block_size: int,
 ) -> None:
-    """Execute copy-on-write: copy whole blocks ``src -> dst``, for every layer.
+    """执行写时复制：把整块 ``src -> dst`` 复制，每一层都复制。
 
-    The block table is a CPU-side data structure, but the KV it points at is on
-    the GPU, so every structural decision in the scheduler becomes a memcpy here.
-    Works for ``[blocks, block_size, kv_heads, head_dim]`` and for the layered
-    ``[layers, blocks, block_size, kv_heads, head_dim]`` layout, because the copy
-    is identical in every layer and only the slot index changes.
+    block 表是 CPU 侧的数据结构，但它指向的 KV 在 GPU 上，所以调度器里每一个结构决策，
+    到这里都变成一次 memcpy。对 ``[blocks, block_size, kv_heads, head_dim]`` 和分层的
+    ``[layers, blocks, block_size, kv_heads, head_dim]`` 两种布局都成立，因为每一层的复制
+    内容一样，只是槽位下标不同。
     """
     if not mapping:
         return
@@ -109,11 +108,11 @@ def build_gather_index(
     block_size: int,
     dummy_slot: int,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Turn page tables into a padded gather index + validity mask.
+    """把页表变成补齐过的 gather 下标 + 有效性掩码。
 
-    ``block_tables``: ``[batch, max_blocks]``, ``kv_lens``: ``[batch]``.
-    Slots past a sequence's length point at ``dummy_slot`` (a permanently zero
-    slot) so the batch stays rectangular without any branch in the hot path.
+    ``block_tables``: ``[batch, max_blocks]``，``kv_lens``: ``[batch]``。超出序列长度的
+    槽位指向 ``dummy_slot``（一个永远为 0 的槽），这样整批保持矩形，热路径里一个分支都
+    不用有。
     """
     batch, _ = block_tables.shape
     max_len = int(kv_lens.max().item())
@@ -125,7 +124,7 @@ def build_gather_index(
 
 
 def gather_kv(k_cache: torch.Tensor, v_cache: torch.Tensor, gather_index: torch.Tensor):
-    """``[batch, max_len, kv_heads, head_dim]`` K/V for a whole decode batch."""
+    """整个 decode 批的 K/V，形状 ``[batch, max_len, kv_heads, head_dim]``。"""
     head_dim = k_cache.shape[-1]
     kv_heads = k_cache.shape[-2]
     flat_k = k_cache.view(-1, kv_heads, head_dim)
@@ -150,9 +149,9 @@ def paged_attention_decode(
     scale: float,
     dummy_slot: int,
 ) -> torch.Tensor:
-    """Attention for a batch where every sequence contributes exactly 1 query token.
+    """每条序列恰好贡献 1 个 query token 的批的注意力。
 
-    ``query``: ``[batch, num_heads, head_dim]``.  Returns ``[batch, num_heads * head_dim]``.
+    ``query``: ``[batch, num_heads, head_dim]``。返回 ``[batch, num_heads * head_dim]``。
     """
     batch, num_heads, head_dim = query.shape
     gather_index, valid = build_gather_index(block_tables, kv_lens, k_cache.shape[-3], dummy_slot)
@@ -174,16 +173,14 @@ def paged_attention_prefill(
     kv_lens: torch.Tensor,
     scale: float,
 ) -> torch.Tensor:
-    """Attention for ragged multi-token queries (prefill / chunked prefill).
+    """长度不齐的多 token query（prefill / 分块 prefill）的注意力。
 
-    Done per sequence: padding the query dimension would make every short decode
-    in the batch pay for the longest prefill, which is exactly the waste
-    continuous batching is supposed to remove.  A fused kernel gets this for free
-    by keeping the query dim flat; here we eat one loop iteration per sequence.
+    按序列分别做：把 query 维补齐，会让批里每个短 decode 都为最长的 prefill 买单，而这
+    正是连续批处理要消除的浪费。融合 kernel 靠把 query 维压平免费拿到这一点；我们这里
+    每条序列吃一次循环。
 
-    ``query_lens`` is a plain list on purpose: reading it back from a CUDA tensor
-    with ``.item()`` inside the layer loop would stall the pipeline once per layer
-    per sequence.
+    ``query_lens`` 故意是普通 list：在层循环里用 ``.item()`` 从 CUDA 张量读回它，会让
+    流水线每层每序列停顿一次。
     """
     num_heads, head_dim = query.shape[1], query.shape[2]
     block_size = k_cache.shape[-3]

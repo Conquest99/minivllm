@@ -15,8 +15,9 @@ from miniagent.types import Role, StopReason
 
 
 def tool_call(tool: str, **arguments) -> str:
-    """Build a Qwen-style call. The first parameter is ``tool``, not ``name``, so a
-    tool that itself takes an argument called ``name`` does not collide with it."""
+    """构造一个 Qwen 风格的调用。第一个参数叫 ``tool`` 而不是 ``name``，这样即使某个
+    工具本身有个叫 ``name`` 的参数也不会撞车。
+    """
     import json
 
     payload = json.dumps({"name": tool, "arguments": arguments})
@@ -216,10 +217,10 @@ def test_on_step_callback_streams_the_trace():
 
 
 def test_only_one_modifying_call_runs_per_turn():
-    """Two writes planned in one reply are two blind writes: the second is deferred.
+    """一次回复里规划的两个写，就是两次盲写：第二个被推迟。
 
-    The loop then refuses a final answer until the deferred change has actually
-    happened, so the scripted model comes back and makes it one turn later.
+    循环随后会拒绝一个最终答案，直到那个被推迟的改动真的发生，于是写死的模型只好回来、
+    晚一轮把它做掉。
     """
     executed: list[str] = []
 
@@ -323,7 +324,7 @@ def test_a_write_that_is_never_retried_is_not_reported_as_success():
 
 
 def answering_model():
-    """A pair of fake tools: one changes a file, one reads it."""
+    """两个假工具：一个改文件，一个读文件。"""
 
     @tool(mutates=True, affects="path")
     def save(path: str) -> str:
@@ -367,7 +368,7 @@ def test_a_write_never_read_back_is_unverified_not_success():
 
 
 def test_reading_the_same_file_again_is_not_a_loop():
-    """The read-back rule demands re-reads, so they must not trip the loop guard."""
+    """「改后必读」要求重复读，所以重复读绝不能触发循环护栏。"""
 
     @tool(reads="path")
     def load(path: str) -> str:

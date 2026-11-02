@@ -131,12 +131,11 @@ def build_sample_db(path: Path) -> Path:
 
 
 def scripted_backend() -> ScriptedBackend:
-    """A canned model that uses the glossary the way a careful one would.
+    """一个写死的模型，像谨慎的模型那样使用词汇表。
 
-    The interesting part is step 0: it does *not* trust a guessed name.  It lists
-    the tables, sees `dba04`, `dba04_cy1` and `dba04_cy4` side by side, and only then
-    picks the one the suffix rule points at.  Counting before selecting is the cheap
-    way to spot a wrong table: a plant-4 monthly report cannot have 21 rows.
+    有意思的是 step 0：它*不*相信猜来的名字。它先列出表，看到 `dba04`、`dba04_cy1` 和
+    `dba04_cy4` 并排摆在眼前，然后才按后缀规则挑中那一张。先计数再取数是发现选错表的
+    便宜办法：一个厂的四厂月报不可能只有 21 行。
     """
     return ScriptedBackend(
         [
@@ -158,10 +157,9 @@ def scripted_backend() -> ScriptedBackend:
 
 
 def scripted_backend_attacking() -> CallableBackend:
-    """A canned model that tries three things the policy must refuse.
+    """一个写死的模型，专门尝试三件策略必须拒绝的事。
 
-    This is the interesting demo: each attempt comes back as a readable observation,
-    and the loop keeps going instead of dying.
+    这是有意思的那个 demo：每次尝试都以一条可读的观察返回，而循环继续跑，不会死掉。
     """
 
     def decide(messages):
@@ -195,11 +193,10 @@ def print_step(step: Step) -> None:
 
 
 def explore(sandbox: SQLSandbox, *, max_tables: int, columns: int, sample: int) -> None:
-    """Dump the schema without involving a model.
+    """不牵扯模型，直接把 schema 倒出来。
 
-    Useful on a large unfamiliar database: it answers "what is in here?" in one pass
-    and, because every call goes through the same read-only sandbox, it cannot change
-    anything either.
+    在陌生的大库上很有用：它一遍回答「这里头有什么」，而且因为每次调用都走同一个只读
+    沙箱，它同样改不了任何东西。
     """
     tools = {t.name: t for t in make_sql_tools(sandbox)}
     print("\n" + "=" * 70)
@@ -246,10 +243,10 @@ def explore(sandbox: SQLSandbox, *, max_tables: int, columns: int, sample: int) 
 
 
 def _parse(parser: argparse.ArgumentParser) -> argparse.Namespace:
-    """Parse, but turn an unknown flag into a "did you mean" instead of a bare refusal.
+    """解析参数，但把不认识的开关变成一句「你是不是想打」，而不是干巴巴的拒绝。
 
-    Abbreviations are off on purpose (a typo must not silently take effect), so the
-    least we can do is name the flag the caller probably wanted.
+    缩写是刻意关掉的（打错字不许静默生效），所以至少可以做到一件事：把调用方大概想打的
+    那个开关名报出来。
     """
     args, unknown = parser.parse_known_args()
     if not unknown:
@@ -440,7 +437,7 @@ def main() -> None:
 
 
 def verdict(result: AgentResult, executed: int) -> str:
-    """Did the model actually answer from data, or did it just emit sentences?"""
+    """模型真的从数据里答出来的，还是只是吐了几句话？"""
     if result.stopped_reason.value != "final_answer":
         if executed:
             return (

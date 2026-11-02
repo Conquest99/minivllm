@@ -28,7 +28,7 @@ from minivllm.sequence import Sequence  # noqa: E402
 
 
 def fabricate(seq_id: int, num_tokens: int) -> Sequence:
-    """A sequence of ``num_tokens`` tokens without needing a tokenizer."""
+    """造一条 ``num_tokens`` 个 token 的序列，不需要 tokenizer。"""
     return Sequence(
         seq_id=seq_id,
         prompt_token_ids=[seq_id * 10000 + i for i in range(num_tokens)],

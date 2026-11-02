@@ -36,11 +36,11 @@ class AllocStatus(Enum):
 
 
 class OutOfBlocksError(RuntimeError):
-    """Raised when the KV cache pool is exhausted (the scheduler must preempt)."""
+    """KV cache 池被耗尽时抛出（调度器必须抢占）。"""
 
 
 class PhysicalBlock:
-    """A page of KV cache memory: ``block_size`` token slots."""
+    """一页 KV cache 内存：``block_size`` 个 token 槽位。"""
 
     __slots__ = ("block_id", "ref_count", "block_hash", "tokens")
 
@@ -101,7 +101,7 @@ class BlockManager:
         }
 
     def cached_prefix_tokens(self, token_ids: list[int]) -> int:
-        """Number of leading tokens whose KV is already in the pool and reusable."""
+        """前缀里有多少 token 的 KV 已经在池里、可以复用。"""
         return len(self.match_prefix(token_ids)) * self.block_size
 
     # ------------------------------------------------------------- 空闲表
@@ -120,14 +120,14 @@ class BlockManager:
         raise OutOfBlocksError(f"out of KV blocks ({self.num_blocks} total)")
 
     def _evict(self, blk: PhysicalBlock) -> None:
-        """Drop the block's cache entry -- its content is about to be overwritten."""
+        """丢掉这个块的缓存项 —— 它的内容马上就要被覆盖了。"""
         if blk.block_hash is not None:
             if self.hash_to_block.get(blk.block_hash) == blk.block_id:
                 del self.hash_to_block[blk.block_hash]
             blk.block_hash = None
 
     def _share(self, block_id: int) -> None:
-        """Take a second reference on an existing block (no copy)."""
+        """在已有的块上加第二个引用（不复制）。"""
         blk = self.blocks[block_id]
         if blk.ref_count == 0:
             if not self._in_free[block_id]:
@@ -145,10 +145,9 @@ class BlockManager:
         return h.digest()
 
     def match_prefix(self, token_ids: list[int]) -> list[int]:
-        """Physical blocks already holding a cached prefix of ``token_ids``.
+        """已经装着 ``token_ids`` 某段前缀的物理块。
 
-        Only *complete* blocks participate: a block must be full before its
-        content is deterministic enough to be shared.
+        只有*完整的*块参与：一个块必须先填满，它的内容才确定到可以共享。
         """
         if not self.enable_prefix_caching:
             return []
@@ -168,7 +167,7 @@ class BlockManager:
 
     # ----------------------------------------------------------- 分配
     def can_allocate(self, seq: Sequence, num_tokens: int | None = None) -> AllocStatus:
-        """Can the prefix cache + free list cover ``num_tokens`` of this sequence?"""
+        """前缀缓存 + 空闲表能覆盖这条序列的 ``num_tokens`` 个 token 吗？"""
         num_tokens = len(seq.data) if num_tokens is None else num_tokens
         bs = self.block_size
         needed = (num_tokens + bs - 1) // bs
@@ -179,11 +178,10 @@ class BlockManager:
         return AllocStatus.LATER
 
     def allocate(self, seq: Sequence, num_tokens: int | None = None) -> int:
-        """Build ``seq.block_table`` covering ``num_tokens`` tokens.
+        """构建覆盖 ``num_tokens`` 个 token 的 ``seq.block_table``。
 
-        With chunked prefill ``num_tokens`` is only the first chunk, not the whole
-        prompt: pages are handed out as the prompt is actually computed, never
-        reserved up front.  Returns the number of blocks satisfied from the cache.
+        有了分块 prefill，``num_tokens`` 只是第一个分块，而不是整个 prompt：页是按 prompt
+        实际算出来的量发放的，从不提前预留。返回有多少块是由缓存满足的。
         """
         if seq.block_table:
             raise AssertionError("sequence already owns a block table")
@@ -206,10 +204,10 @@ class BlockManager:
         return len(matched)
 
     def ensure_capacity(self, seq: Sequence, num_tokens: int) -> list[tuple[int, int]]:
-        """Grow the block table to cover ``num_tokens``, copying shared pages if needed.
+        """把 block 表扩展到能覆盖 ``num_tokens``，需要时复制共享页。
 
-        Returns ``[(src_block, dst_block), ...]`` -- copy-on-write operations the
-        model runner must apply to the real KV tensors before writing new tokens.
+        返回 ``[(src_block, dst_block), ...]`` —— 模型执行器必须在写入新 token 之前，把这些
+        写时复制操作施加到真正的 KV 张量上。
         """
         bs = self.block_size
         needed = (num_tokens + bs - 1) // bs
@@ -236,7 +234,7 @@ class BlockManager:
         return cow_ops
 
     def register_computed_blocks(self, seq: Sequence) -> None:
-        """Publish every now-complete block of ``seq`` into the prefix cache."""
+        """把 ``seq`` 中每个刚刚填满的块发布进前缀缓存。"""
         if not self.enable_prefix_caching:
             return
         bs = self.block_size
@@ -270,11 +268,10 @@ class BlockManager:
         seq.block_hashes.clear()
 
     def fork(self, parent: Sequence, child: Sequence) -> None:
-        """Make ``child`` share every block of ``parent`` (ref-counted, no copy).
+        """让 ``child`` 共享 ``parent`` 的每一个块（引用计数，不复制）。
 
-        Used for ``n > 1`` parallel sampling.  The pages stay shared until one of
-        the two writes past the fork point, at which point ``ensure_capacity``
-        copies exactly the one block that diverges.
+        用于 ``n > 1`` 并行采样。这些页会一直共享，直到其中一方写过那个分叉点，此时
+        ``ensure_capacity`` 只复制那一个真正分叉的块。
         """
         child.block_table = list(parent.block_table)
         child.block_hashes = list(parent.block_hashes)
@@ -284,5 +281,5 @@ class BlockManager:
 
     # -------------------------------------------------------------- 分析
     def naive_reservation_cost(self, seq: Sequence, max_model_len: int) -> int:
-        """Blocks a *non-paged* engine would reserve up front for this sequence."""
+        """一个*非分页*引擎会为这条序列提前预留多少块。"""
         return (max_model_len + self.block_size - 1) // self.block_size

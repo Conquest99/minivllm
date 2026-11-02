@@ -77,11 +77,10 @@ def test_alternate_key_spellings():
 
 
 def test_openai_wire_shape_keeps_its_arguments():
-    """``{"function": {"name": …, "arguments": …}}`` is what OpenAI's API returns.
+    """``{"function": {"name": …, "arguments": …}}`` 是 OpenAI API 返回的形状。
 
-    The name used to be found inside the nested dict while the arguments were looked
-    up at the top level, so the call came out with ``{}`` -- a silent data loss that
-    only shows up later as "missing required argument".
+    以前 name 会在内层 dict 里找到，而 arguments 仍在外层查找，于是调用变成 ``{}`` ——
+    一次静默的数据丢失，只在后面以「缺少必需参数」的形式暴露出来。
     """
     text = '<tool_call>{"type": "function", "function": {"name": "add", "arguments": {"a": 1}}}</tool_call>'
     call = parse(text).calls[0]

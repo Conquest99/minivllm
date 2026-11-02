@@ -56,7 +56,7 @@ class ParseResult:
 
 
 def _load_object(blob: str) -> dict | None:
-    """Parse a JSON (or JSON-ish) object.  Returns None if it is not an object."""
+    """解析一个 JSON（或近似 JSON）对象。不是对象就返回 None。"""
     blob = blob.strip()
     if not blob:
         return None
@@ -78,7 +78,7 @@ def _load_object(blob: str) -> dict | None:
 
 
 def _first(containers: tuple[dict, ...], keys: tuple[str, ...]) -> object | None:
-    """First value found for any of ``keys``, searching ``containers`` in order."""
+    """按顺序在 ``containers`` 里查找，返回 ``keys`` 中任一键命中的第一个值。"""
     for container in containers:
         for key in keys:
             if key in container:
@@ -87,7 +87,7 @@ def _first(containers: tuple[dict, ...], keys: tuple[str, ...]) -> object | None
 
 
 def _normalise(obj: dict, raw: str) -> ToolCall:
-    """Accept the several key spellings models use and build a ToolCall."""
+    """接受模型用过的几种键名拼法，构建出 ToolCall。"""
     # OpenAI 的线上格式把所有东西都嵌深了一层：
     # {"function": {"name": "add", "arguments": {...}}}。先解包：否则
     # name 会在内层 dict 里找到，而 arguments 仍在外层查找，
@@ -119,7 +119,7 @@ def _normalise(obj: dict, raw: str) -> ToolCall:
 
 
 def _resolve_lone_json(text: str) -> list[ToolCall] | None:
-    """Handle a reply that is nothing but one JSON object."""
+    """处理「整个回复就是一个 JSON 对象」的情况。"""
     obj = _load_object(text)
     if obj is None:
         return None
@@ -129,7 +129,7 @@ def _resolve_lone_json(text: str) -> list[ToolCall] | None:
 
 
 def parse(text: str) -> ParseResult:
-    """Extract every tool call from ``text`` and strip the blocks from the prose."""
+    """从 ``text`` 里取出每一个工具调用，并把调用块从散文里剥掉。"""
     if not text:
         return ParseResult(text="")
 
@@ -200,7 +200,7 @@ def parse(text: str) -> ParseResult:
 
 
 def format_tool_call(name: str, arguments: dict, *, style: str = "qwen") -> str:
-    """Render a call back into text -- used by backends that return structured calls."""
+    """把一个调用渲染回文本 —— 给那些返回结构化调用的后端用。"""
     payload = json.dumps({"name": name, "arguments": arguments}, ensure_ascii=False)
     if style == "qwen":
         return f"<tool_call>\n{payload}\n</tool_call>"

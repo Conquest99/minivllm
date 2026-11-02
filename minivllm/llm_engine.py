@@ -51,7 +51,7 @@ class EngineMetrics:
 
     @property
     def throughput(self) -> float:
-        """Generated tokens per second of wall clock."""
+        """按墙上时间算的每秒生成 token 数。"""
         return self.num_generation_tokens / self.wall_time if self.wall_time else 0.0
 
     @property
@@ -178,7 +178,7 @@ class LLMEngine:
 
     # ------------------------------------------------------------- 生成
     def generate(self, prompts: list[str], params: SamplingParams | None = None) -> list[RequestOutput]:
-        """Run to completion and return one output per prompt, in input order."""
+        """跑到全部结束，按输入顺序每条 prompt 返回一个输出。"""
         t0 = time.perf_counter()
         ids = [self.add_request(p, params) for p in prompts]
         done: dict[int, RequestOutput] = {}

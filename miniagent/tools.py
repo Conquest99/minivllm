@@ -54,7 +54,7 @@ def _is_union(origin: Any) -> bool:
 
 
 def _json_schema(tp: Any) -> dict[str, Any]:
-    """Map a Python annotation to the subset of JSON Schema that tools need."""
+    """把 Python 注解映射成工具需要的那一小撮 JSON Schema。"""
     if tp is inspect.Parameter.empty:
         return {"type": "string"}
 
@@ -81,7 +81,7 @@ def _json_schema(tp: Any) -> dict[str, Any]:
 
 
 def _docstring_summary(fn: Callable[..., Any]) -> str:
-    """First paragraph of the docstring, with ``Args:`` and later sections dropped."""
+    """docstring 的第一段，遇到 ``Args:`` 及之后的小节就停下。"""
     doc = inspect.getdoc(fn) or ""
     lines: list[str] = []
     for line in doc.splitlines():
@@ -93,7 +93,7 @@ def _docstring_summary(fn: Callable[..., Any]) -> str:
 
 
 def _param_docs(fn: Callable[..., Any]) -> dict[str, str]:
-    """Parse ``name: description`` lines out of the docstring's Args section."""
+    """从 docstring 的 Args 小节里解析 ``名字: 描述`` 行。"""
     doc = inspect.getdoc(fn) or ""
     out: dict[str, str] = {}
     current: str | None = None
@@ -148,7 +148,7 @@ class Tool:
         return list(self.parameters.get("required", []))
 
     def to_schema(self) -> dict[str, Any]:
-        """The object handed to the model (OpenAI ``tools`` shape)."""
+        """交给模型的那个对象（OpenAI ``tools`` 的形状）。"""
         return {
             "type": "function",
             "function": {
@@ -159,7 +159,7 @@ class Tool:
         }
 
     def validate(self, arguments: dict[str, Any]) -> str | None:
-        """Return an error message, or None when the arguments are acceptable."""
+        """返回错误消息；参数没问题时返回 None。"""
         props = self.parameters.get("properties", {})
         unknown = [k for k in arguments if k not in props]
         if unknown:
@@ -182,13 +182,11 @@ def tool(
     affects: str | None = None,
     reads: str | None = None,
 ):
-    """Turn a function into a :class:`Tool` by introspecting it.
+    """通过自省把一个函数变成 :class:`Tool`。
 
-    ``mutates=True`` marks a tool that changes state outside the conversation; the
-    agent then runs at most one such call per turn, so the model has to see the
-    result before it commits to the next change.  ``affects="path"`` additionally
-    says *which* argument names what was changed, which lets the agent require a
-    read-back before it believes the answer.
+    ``mutates=True`` 标记一个会改动对话之外状态的工具；agent 于是每轮最多跑一个这种调用，
+    好让模型在看到结果之后才决定下一次改动。``affects="path"`` 进一步说明*哪个*参数指向
+    被改动的东西，这样 agent 就能要求先读回、再相信答案。
 
     >>> @tool
     ... def add(a: int, b: int) -> int:
@@ -229,7 +227,7 @@ def tool(
 
 
 class ToolRegistry:
-    """Name -> Tool lookup plus the execution boundary."""
+    """名字 -> Tool 的查表，加上执行边界。"""
 
     def __init__(self, tools: typing.Iterable[Tool] | None = None) -> None:
         self._tools: dict[str, Tool] = {}
@@ -263,13 +261,13 @@ class ToolRegistry:
 
     @staticmethod
     def _declared_paths(tool: Tool | None, call: ToolCall, attribute: str) -> list[str]:
-        """The path a call names in the argument that ``tool.<attribute>`` declares."""
+        """调用在 ``tool.<attribute>`` 所声明的那个参数里给出的路径。"""
         key = getattr(tool, attribute, None) if tool is not None else None
         value = call.arguments.get(key) if isinstance(key, str) else None
         return [value] if isinstance(value, str) and value else []
 
     def execute(self, call: ToolCall) -> ToolResult:
-        """Run one call.  Never raises: every failure becomes ``ok=False``."""
+        """执行一个调用。永不抛异常：每种失败都变成 ``ok=False``。"""
         started = time.perf_counter()
         t = self.get(call.name)
 

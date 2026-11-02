@@ -40,7 +40,7 @@ def tool_call(name: str, **arguments) -> str:
 
 
 def scripted_backend() -> ScriptedBackend:
-    """A fake model that writes, reads, then edits the same file."""
+    """一个假模型：写、读、再改同一个文件。"""
     return ScriptedBackend(
         [
             tool_call(
@@ -56,10 +56,10 @@ def scripted_backend() -> ScriptedBackend:
 
 
 def scripted_backend_with_error() -> CallableBackend:
-    """A fake model that uses write_file's parameter name on write_lines, then fixes it.
+    """一个假模型：在 write_lines 上用了 write_file 的参数名，然后改对。
 
-    This is the write-tools version of "工具错误是观察，不是异常": the mistake is
-    caught by ``Tool.validate`` and comes back as text the model can act on.
+    这是「工具错误是观察，不是异常」的写入版：错误被 ``Tool.validate`` 截住，回来的是
+    模型能据此行动的文字。
     """
 
     def decide(messages):

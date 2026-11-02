@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT))
 
 
 def model_path() -> str:
-    """Prefer a locally downloaded checkpoint, fall back to the hub id."""
+    """优先用本地下载好的权重，没有就退回 hub id。"""
     if (LOCAL_MODEL / "config.json").exists():
         return str(LOCAL_MODEL)
     return os.environ.get("MINIVLLM_MODEL", "Qwen/Qwen2.5-0.5B-Instruct")
@@ -26,11 +26,10 @@ def require_local_model() -> str:
 
 @pytest.fixture(scope="session")
 def runner():
-    """A ModelRunner on the device selected by MINIVLLM_TEST_DEVICE (default cpu).
+    """一个 ModelRunner，设备由 MINIVLLM_TEST_DEVICE 决定（默认 cpu）。
 
-    CPU + float32 keeps the numerical-comparison tests fast to trust and does not
-    compete with whatever else is using the GPU.  Set MINIVLLM_TEST_DEVICE=cuda to
-    validate the same code on the GPU path.
+    CPU + float32 让数值对比类测试跑得快、结果可信，也不去和别人抢 GPU。设
+    MINIVLLM_TEST_DEVICE=cuda 就能在 GPU 路径上验证同一份代码。
     """
     import torch
 

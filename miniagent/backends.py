@@ -31,7 +31,7 @@ from miniagent.types import Message
 
 
 class LLMBackend(Protocol):
-    """Everything the agent needs from a model."""
+    """agent 需要从模型那里得到的全部东西。"""
 
     name: str
 
@@ -48,10 +48,9 @@ class LLMBackend(Protocol):
 
 
 class ScriptedBackend:
-    """Replay a fixed list of replies, in order.
+    """按顺序回放一份写死的回复列表。
 
-    This is the workhorse for tests: the loop's control flow is what needs
-    verifying, not the model's prose.
+    这是测试的主力：需要验证的是循环的控制流，不是模型的文笔。
     """
 
     name = "scripted"
@@ -72,11 +71,10 @@ class ScriptedBackend:
 
 
 class CallableBackend:
-    """Decide each reply from the conversation so far.
+    """根据到此为止的对话决定每一条回复。
 
-    More expressive than a fixed list: it can inspect the tool results the agent
-    appended and answer accordingly, which is how a "model that recovers from an
-    error" is simulated.
+    比固定列表更有表达力：它能查看 agent 追加的工具结果并据此作答，这就是「一个能从
+    错误中恢复的模型」被模拟出来的方式。
     """
 
     name = "callable"
@@ -97,14 +95,13 @@ DEFAULT_MODEL = Path(__file__).resolve().parents[1] / "models" / "Qwen2.5-0.5B-I
 
 
 class MiniVLLMBackend:
-    """Generate with the local :class:`minivllm.LLMEngine`.
+    """用本地的 :class:`minivllm.LLMEngine` 生成。
 
-    ``transformers`` is imported lazily inside ``__init__`` so that importing
-    ``miniagent`` (and running the parser/tool tests) needs no torch at all.
+    ``transformers`` 直到 ``__init__`` 里才延迟导入，所以导入 ``miniagent``（以及跑
+    parser / 工具测试）完全不需要 torch。
 
-    Qwen2.5's chat template understands the ``tools=`` argument and renders the
-    official ``<tool_call>`` format, so the model sees exactly the prompt layout it
-    was trained on -- no hand-rolled prompt string anywhere.
+    Qwen2.5 的 chat template 认识 ``tools=`` 参数，会渲染官方的 ``<tool_call>`` 格式，
+    所以模型看到的就是它训练时的 prompt 布局 —— 全仓库没有一处手写的 prompt 字符串。
     """
 
     name = "minivllm"
@@ -163,10 +160,10 @@ class MiniVLLMBackend:
 
 
 class OpenAICompatBackend:
-    """Any ``/chat/completions`` endpoint: DeepSeek, vLLM server, Ollama, LM Studio.
+    """任何 ``/chat/completions`` 端点：DeepSeek、vLLM 服务器、Ollama、LM Studio。
 
-    Native ``tool_calls`` in the response are converted back into Qwen's text form
-    so the rest of the agent only ever deals with one representation.
+    响应里原生的 ``tool_calls`` 会被转回 Qwen 的文本形式，好让 agent 其余部分永远只面对
+    一种表示。
     """
 
     name = "openai-compatible"
@@ -235,7 +232,7 @@ class OpenAICompatBackend:
 
 
 def build_backend(kind: str, **kwargs: Any) -> LLMBackend:
-    """Small factory so scripts can take ``--backend`` on the command line."""
+    """小工厂，好让脚本能在命令行上选 ``--backend``。"""
     if kind == "local":
         return MiniVLLMBackend(**kwargs)
     if kind in {"api", "openai"}:

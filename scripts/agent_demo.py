@@ -33,7 +33,7 @@ def tool_call(tool: str, **arguments) -> str:
 
 
 def scripted_backend() -> ScriptedBackend:
-    """A fake model that needs two calculator calls, then answers."""
+    """一个假模型：需要两次 calculator 调用，然后作答。"""
     return ScriptedBackend(
         [
             tool_call("calculator", expression="23 * 7"),
@@ -44,10 +44,9 @@ def scripted_backend() -> ScriptedBackend:
 
 
 def scripted_backend_with_error() -> CallableBackend:
-    """A fake model that gets an argument name wrong, then fixes it.
+    """一个假模型：先把参数名写错，然后自己改对。
 
-    This is the interesting one: it shows a tool error becoming an observation
-    rather than an exception.
+    这个才是有意思的：它演示一次工具错误是怎么变成观察结果，而不是异常的。
     """
 
     def decide(messages):

@@ -73,7 +73,7 @@ class Scheduler:
         return finished
 
     def reset_cache(self) -> None:
-        """Drop all prefix-cache entries (only legal when nothing is running)."""
+        """丢掉所有前缀缓存项（只有什么都没在跑时才合法）。"""
         if self.running:
             raise RuntimeError("cannot reset the prefix cache while sequences are running")
         self.block_manager.hash_to_block.clear()
@@ -95,7 +95,7 @@ class Scheduler:
         return out
 
     def _chunk_size(self, seq: Sequence, budget: int) -> int:
-        """Tokens to run for this sequence, block-aligned when it is a partial chunk."""
+        """这条序列这一步要跑多少 token，是部分分块时对齐到块边界。"""
         remaining = seq.num_new_tokens
         n = min(remaining, budget)
         if n == remaining:

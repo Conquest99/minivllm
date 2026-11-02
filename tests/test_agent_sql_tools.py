@@ -29,7 +29,7 @@ from miniagent.types import ToolCall
 
 @pytest.fixture
 def db(tmp_path):
-    """A real sqlite file with two tables and a few rows."""
+    """一个真实的 sqlite 文件，两张表，几行数据。"""
     path = tmp_path / "shop.db"
     conn = sqlite3.connect(path)
     conn.executescript(
@@ -143,7 +143,7 @@ def test_query_limit_is_clamped_to_the_policy(db):
 
 
 def test_a_truncated_result_says_there_is_more(box):
-    """Silence is the bug: '1 row(s)' when 2 rows match is a confident wrong answer."""
+    """沉默才是 bug：匹配 2 行时回一句「1 row(s)」，就是一个自信的错误答案。"""
     out = tools_of(box)["query_table"].func("users", columns=["name"], limit=1)
     assert "1 row(s)" in out
     assert "MORE ROWS EXIST" in out
@@ -197,7 +197,7 @@ def test_table_names_that_are_not_bare_identifiers_are_refused(box, table):
 
 
 def test_a_comment_marker_inside_a_name_cannot_comment_anything_out(box):
-    """``users--`` is a legal identifier once quoted, so it stays one identifier."""
+    """``users--`` 加上引号就是一个合法标识符，所以它仍然只是一个标识符。"""
     sql, _params = box.build_select("users--", None, [], "", 10)
     assert sql == 'SELECT * FROM "users--" LIMIT 10'
     assert " -- " not in sql
@@ -235,12 +235,11 @@ def test_conditions_must_use_the_supported_syntax(box, condition):
     ],
 )
 def test_sql_lookalikes_inside_a_value_are_harmless(box, condition):
-    """These are not injection attempts that got through -- they are *values*.
+    """这些不是「穿过去了」的注入尝试 —— 它们是*值*。
 
-    Everything after the operator is bound as a parameter, so ``OR 1=1`` and
-    ``; DROP TABLE`` are compared as literal text and match nothing.  Asserting that
-    they raise would be asserting the wrong thing: the point is that they cannot
-    execute, not that they are rejected.
+    运算符之后的一切都作为参数绑定，所以 ``OR 1=1`` 和 ``; DROP TABLE`` 是当普通文本
+    比较的，匹配不到任何行。断言它们该抛异常，等于断言了错的东西：重点是它们无法执行，
+    不是它们被拒绝。
     """
     sql, params = box.build_select("users", None, [condition], "", 10)
     assert sql.count("?") == 1, "exactly one bound value, no concatenation"
@@ -253,7 +252,7 @@ def test_sql_lookalikes_inside_a_value_are_harmless(box, condition):
 
 
 def test_a_quote_in_a_value_is_carried_as_a_parameter_not_as_sql(box):
-    """The value is bound, so a quote inside it cannot end the literal."""
+    """值是绑定的，所以值里的引号没法把字面量提前结束。"""
     sql, params = box.build_select("users", None, ["name = 'o''brien'"], "", 10)
     assert "o''brien" not in sql
     assert params == ["o''brien"]
@@ -349,7 +348,7 @@ def test_the_generated_sql_is_exactly_what_was_intended(box):
 
 
 def test_identifiers_that_need_quoting_are_quoted(db):
-    """Real schemas contain names like 长垣单井基础信息表, daa05-cy2 and 累积产液量/t."""
+    """真实 schema 里就有 长垣单井基础信息表、daa05-cy2、累积产液量/t 这样的名字。"""
     conn = sqlite3.connect(db)
     conn.executescript(
         """
@@ -368,7 +367,7 @@ def test_identifiers_that_need_quoting_are_quoted(db):
 
 
 def test_a_name_containing_a_quote_is_still_refused(db):
-    """Quoting is only safe because the name may not contain the quote character."""
+    """加引号之所以安全，正是因为名字里不允许出现引号字符。"""
     with SQLSandbox(sqlite_connector(db)) as box:
         for name in ['users"', "users`", "us'ers", "users x"]:
             with pytest.raises(SQLPolicyError):
@@ -379,7 +378,7 @@ def test_a_name_containing_a_quote_is_still_refused(db):
 
 
 def test_errors_from_sql_tools_reach_the_model_as_observations(box):
-    """The registry boundary: a policy refusal is a ToolResult, not an exception."""
+    """注册表这条边界：策略拒绝是一个 ToolResult，不是异常。"""
     registry = ToolRegistry(make_sql_tools(box))
     result = registry.execute(ToolCall(name="query_table", arguments={"table": "users; DROP TABLE x"}))
     assert result.ok is False
@@ -387,10 +386,10 @@ def test_errors_from_sql_tools_reach_the_model_as_observations(box):
 
 
 def test_values_that_pack_two_conditions_are_refused(box):
-    """``HS > 25 AND HS < 28`` in one element is the small-model mistake.
+    """把 ``HS > 25 AND HS < 28`` 塞进一个元素，是小模型的经典错误。
 
-    Bound as a parameter it matches nothing, so the run reports "0 rows" -- which is
-    indistinguishable from a real empty result.  Refusing it is the whole point.
+    当成参数绑定，它匹配不到任何行，于是运行报告「0 行」—— 而这和真正的空结果无法区分。
+    拒绝它才是全部重点。
     """
     with pytest.raises(SQLPolicyError, match="ONE condition"):
         box.build_select("orders", None, ["amount > 25 AND amount < 28"], "", 10)
@@ -401,7 +400,7 @@ def test_values_that_pack_two_conditions_are_refused(box):
 
 
 def test_a_packed_condition_is_refused_before_it_reaches_the_database(box):
-    """The refused value never becomes SQL, so the table is untouched by definition."""
+    """被拒绝的值根本不会变成 SQL，所以这张表按定义就没有被碰过。"""
     before = box.execute("SELECT COUNT(*) FROM orders", [])[1]
     with pytest.raises(SQLPolicyError):
         box.build_select("orders", None, ["amount > 25 AND amount < 28"], "", 10)
@@ -443,7 +442,7 @@ def test_the_session_is_put_into_read_only_mode(box):
 
 
 def test_the_server_refuses_a_write_even_if_one_somehow_got_through(box):
-    """The session guard, not the builder, is the last line of defence."""
+    """最后一道防线是会话守卫，不是语句构建器。"""
     box.connection()  # 施加了 PRAGMA query_only
     with pytest.raises(sqlite3.OperationalError, match="readonly database"):
         box.execute("INSERT INTO users (name) VALUES ('mallory')", [])

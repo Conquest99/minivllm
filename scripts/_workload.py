@@ -32,15 +32,13 @@ def build_workload(
     max_output: int = 256,
     distribution: str = "uniform",
 ) -> list[dict]:
-    """``n`` requests with highly variable output lengths.
+    """``n`` 个输出长度差异极大的请求。
 
-    The variance is the whole point: a static batch runs until its *longest*
-    member finishes, so one 256-token request forces every 16-token request to
-    keep its slot -- and its memory -- occupied.
+    这份方差就是全部意义：静态批要跑到它*最长*的成员结束，所以一个 256 token 的请求会
+    逼着每个 16 token 的请求继续占着自己的槽位 —— 以及自己的内存。
 
-    ``distribution="heavy_tail"`` draws ``u**3`` instead of a uniform ``u``: most
-    requests are short and a few are very long.  That is what a real chat
-    workload looks like, and it is where static batching loses the most.
+    ``distribution="heavy_tail"`` 抽的是 ``u**3`` 而不是均匀的 ``u``：大多数请求很短，
+    极少数很长。这才是真实对话负载的样子，也是静态批吃亏最狠的地方。
     """
     rng = random.Random(seed)
     workload = []

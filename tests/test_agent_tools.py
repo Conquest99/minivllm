@@ -299,7 +299,7 @@ def test_edit_file_rejects_an_empty_needle(tmp_path):
 
 
 def test_edit_file_receipt_names_the_line_it_changed(tmp_path):
-    """The receipt must distinguish line 1 from line 2 -- that was the whole task."""
+    """回执必须能区分第 1 行和第 2 行 —— 那就是整个任务本身。"""
     tools = write_tools(tmp_path)
     tools["write_file"].func("a.txt", "one\ntwo\nthree\n")
 
@@ -384,7 +384,7 @@ def test_the_registry_reports_which_paths_a_call_touched(tmp_path):
 
 
 def test_appending_to_a_file_this_run_never_saw_is_refused(tmp_path):
-    """The exact bug from the demo: `buy milk` + `buy milk` = one glued line."""
+    """demo 里那个一模一样的 bug：``buy milk`` + ``buy milk`` = 粘成一行。"""
     (tmp_path / "todo.txt").write_text("buy milk", encoding="utf-8")
 
     with pytest.raises(PermissionError, match="has not read it"):

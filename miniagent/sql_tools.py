@@ -43,11 +43,10 @@ _QUOTE_FORBIDDEN = ("`", '"', "'", ";", "(", ")", " ", "\t", "\n", "\r")
 
 
 def _quote(name: str, dialect: str) -> str:
-    """Wrap a validated identifier in the dialect's quote character.
+    """把校验过的标识符包上该方言的引号字符。
 
-    Quoting is required, not cosmetic: MySQL needs backticks for ``daa05-cy2``
-    (``-`` is the minus operator) and sqlite needs double quotes.  Safe because
-    :data:`_IDENT` already rejected every quote character.
+    引号是必需的，不是装饰：MySQL 对 ``daa05-cy2`` 必须用反引号（``-`` 是减号运算符），
+    sqlite 要用双引号。安全的前提是 :data:`_IDENT` 已经拒绝了所有引号字符。
     """
     return f"`{name}`" if dialect == "mysql" else f'"{name}"'
 
@@ -130,7 +129,7 @@ The pattern requires a real identifier after ``and``/``or`` to fire.
 
 
 class SQLPolicyError(ValueError):
-    """A request the policy refuses. Message is written for the model to act on."""
+    """被策略拒绝的请求。消息是写给模型看、让它照着改的。"""
 
 
 @dataclass(frozen=True)
@@ -159,13 +158,13 @@ class SQLPolicy:
 
 
 def _dialect(conn: Any) -> str:
-    """``sqlite`` or ``mysql``, inferred from the driver module of the connection."""
+    """``sqlite`` 或 ``mysql``，从连接的驱动模块推断出来。"""
     module = getattr(type(conn), "__module__", "").split(".")[0]
     return "sqlite" if module == "sqlite3" else "mysql"
 
 
 def _paramstyle(conn: Any) -> str:
-    """PEP 249 declares ``paramstyle`` on the *module*; read it, with fallbacks."""
+    """PEP 249 把 ``paramstyle`` 声明在*模块*上；读它，并带好兜底。"""
     module = getattr(type(conn), "__module__", "").split(".")[0]
     declared = getattr(sys.modules.get(module), "paramstyle", None)
     if declared in ("qmark", "pyformat", "format", "numeric", "named"):
@@ -182,21 +181,19 @@ def _placeholder(style: str, index: int) -> str:
 
 
 def _is_quoted(raw: str) -> bool:
-    """True when the value is wrapped in a matching pair of quotes.
+    """值被一对匹配的引号包住时为真。
 
-    A quoted value may contain anything -- ``'x'' OR 1=1 --'`` is a legitimate string
-    to search for, and it is bound as a parameter anyway.  Only *unquoted* text with
-    SQL syntax in it is a mistake worth refusing.
+    被引号包住的值可以包含任何东西 —— ``'x'' OR 1=1 --'`` 是一个合法的搜索目标，反正
+    它是当参数绑定的。只有*没有*引号、里面却带 SQL 语法的文本，才是值得拒绝的错误。
     """
     text = raw.strip()
     return len(text) >= 2 and text[0] == text[-1] and text[0] in "'\""
 
 
 def _literal(raw: str) -> Any:
-    """Turn the text after an operator into a Python value.
+    """把运算符后面的文本变成 Python 值。
 
-    Quoted text stays text; bare digits become numbers, so ``amount > 100`` compares
-    numerically instead of lexicographically.
+    带引号的保持文本；裸数字变成数值，于是 ``amount > 100`` 是按数值比较而不是按字典序。
     """
     text = raw.strip()
     if len(text) >= 2 and text[0] == text[-1] and text[0] in "'\"":
@@ -217,7 +214,7 @@ def _literal(raw: str) -> Any:
 
 
 def _split_list(raw: str) -> list[Any]:
-    """Parse ``(a, 'b', 3)`` into values, respecting quotes."""
+    """把 ``(a, 'b', 3)`` 解析成一组值，并尊重引号。"""
     text = raw.strip()
     if text.startswith("(") and text.endswith(")"):
         text = text[1:-1]
@@ -248,10 +245,10 @@ class _Clause:
 
 
 class SQLSandbox:
-    """Holds one connection, the policy, and the statement builder.
+    """持有连接、策略和语句构建器。
 
-    ``connect`` is a zero-argument factory so the caller decides how to reach the
-    database (and so tests can hand over an in-memory sqlite connection).
+    ``connect`` 是一个无参工厂，好让调用方自己决定怎么到达数据库（也让测试能塞进来一个
+    内存 sqlite 连接）。
     """
 
     def __init__(
@@ -286,11 +283,10 @@ class SQLSandbox:
 
     @staticmethod
     def _enforce_read_only(conn: Any) -> str:
-        """Make the session itself refuse writes, and report what happened.
+        """让会话自身拒绝写入，并如实报告结果。
 
-        Failure is deliberately *not* fatal: a restricted account may lack the
-        privilege to set it, yet still be read-only by grant.  The state string is
-        surfaced in stats so a caller can assert on it when it matters.
+        失败是刻意*不*致命的：受限账号可能没有设置它的权限，但它凭授权本来就是只读的。状态
+        字符串会出现在统计里，需要严格保证的调用方自己去断言它。
         """
         dialect = _dialect(conn)
         cursor = conn.cursor()
@@ -423,12 +419,11 @@ class SQLSandbox:
         limit: int,
         probe: bool = False,
     ) -> tuple[str, list[Any]]:
-        """Return ``(sql, params)``. Exposed so tests can assert on the SQL itself.
+        """返回 ``(sql, params)``。暴露出来是为了让测试能直接断言 SQL 本身。
 
-        ``probe`` asks for one row *more* than the caller intends to show.  That extra
-        row is a sentinel: if it comes back, more rows exist than the caller will see.
-        A silent ``LIMIT`` is how "2 rows match, here is 1" becomes a confident wrong
-        answer -- the model cannot know what it was not shown.
+        ``probe`` 会比调用方打算展示的行数*多取一行*。这多出来的一行是哨兵：它回来了，就说明
+        真实行数比调用方看到的多。一个沉默的 ``LIMIT`` 正是「匹配 2 行，这里给你 1 行」变成
+        自信错误答案的方式 —— 模型没法知道自己没被展示的那部分。
         """
         name = self._check_table(table)
         dialect = _dialect(self.connection())
@@ -464,7 +459,7 @@ class SQLSandbox:
         return columns, rows
 
     def check_raw(self, sql: str) -> str:
-        """Validate a hand-written SELECT. Only reachable when policy allows it."""
+        """校验一条手写的 SELECT。只有策略允许时才走得到这里。"""
         if not self.policy.allow_raw_select:
             raise SQLPolicyError(
                 "raw SQL is disabled; use query_table(table, columns, where, order_by, limit)"
@@ -484,7 +479,7 @@ class SQLSandbox:
 
 
 def _format_table(columns: list[str], rows: list[tuple], policy: SQLPolicy) -> str:
-    """Render rows as a fixed-width table, trimmed to fit the model's context."""
+    """把行渲染成定宽表格，裁剪到能塞进模型的上下文。"""
     if not columns:
         return "(no rows)"
 
@@ -522,10 +517,10 @@ def make_sql_tools(
     *,
     lead: str = "",
 ) -> list[Tool]:
-    """Build the read-only SQL tool set bound to one sandbox.
+    """构建绑定到某个沙箱的只读 SQL 工具集。
 
-    Four tools, deliberately narrow.  ``query_table`` takes structured filters rather
-    than SQL: the model describes *what it wants*, this module decides *how to ask*.
+    四个工具，刻意很窄。``query_table`` 收的是结构化条件而不是 SQL：模型描述*它要什么*，
+    本模块决定*怎么问*。
     """
     if sandbox is None:
         raise ValueError(
@@ -654,11 +649,11 @@ def mysql_connector(
     database: str = "",
     **kwargs: Any,
 ) -> Callable[[], Any]:
-    """A connection factory for MySQL via ``pymysql``.
+    """MySQL 的连接工厂，走 ``pymysql``。
 
-    ``pymysql`` is imported lazily so importing this module needs no driver installed.
+    ``pymysql`` 是延迟导入的，所以导入本模块不需要装驱动。
 
-    Grant this account ``SELECT`` only::
+    给这个账号只授 ``SELECT``::
 
         CREATE USER 'agent'@'%' IDENTIFIED BY '...';
         GRANT SELECT ON shop.* TO 'agent'@'%';
@@ -689,7 +684,7 @@ def mysql_connector(
 
 
 def sqlite_connector(path: str | Path) -> Callable[[], Any]:
-    """A connection factory for a local sqlite file -- handy for tests and demos."""
+    """本地 sqlite 文件的连接工厂 —— 测试和 demo 用起来很顺手。"""
     import sqlite3
 
     target = str(path)

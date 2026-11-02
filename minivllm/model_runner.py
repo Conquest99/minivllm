@@ -80,13 +80,11 @@ class ModelRunner:
         return 2 * self.num_layers * self.cfg.block_size * self.num_kv_heads * self.head_dim * element
 
     def _profile_num_blocks(self) -> int:
-        """How many pages to allocate.
+        """分配多少页。
 
-        Bounded twice: by the VRAM left after the weights are loaded, and by the
-        number of pages the scheduler could ever address
-        (``max_num_seqs * max_model_len / block_size``).  Allocating more than that
-        would waste the desktop's memory for addresses no request can reference.
-        Set ``num_gpu_blocks`` to override.
+        被两重边界卡住：权重加载后剩下的显存，以及调度器可能寻址到的页数上限
+        （``max_num_seqs * max_model_len / block_size``）。分配超过后者，就是在为没有任何请求
+        会引用的地址浪费这台机器的内存。设置 ``num_gpu_blocks`` 可以覆盖。
         """
         useful = max(1, self.cfg.max_num_seqs * self.cfg.max_blocks_per_seq)
         if self.device.type == "cpu":
@@ -178,7 +176,7 @@ class ModelRunner:
     # --------------------------------------------------------------- 前向
     @torch.inference_mode()
     def execute_model(self, seqs: list[Sequence], num_new_tokens: list[int]) -> torch.Tensor:
-        """Run one step.  Returns ``[batch, vocab]`` logits, one row per sequence."""
+        """跑一步。返回 ``[batch, vocab]`` 的 logits，每条序列一行。"""
         inp = self._build_inputs(seqs, num_new_tokens)
 
         hidden = self.model.embed_tokens(inp["input_ids"])  # [num_tokens, hidden]

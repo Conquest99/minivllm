@@ -70,7 +70,7 @@ class Sequence:
 
     @property
     def num_new_tokens(self) -> int:
-        """Uncomputed suffix -- what the next forward pass has to run."""
+        """尚未算过的后缀 —— 下一次前向必须跑的部分。"""
         return len(self.data) - self.num_computed_tokens
 
     @property
@@ -91,7 +91,7 @@ class Sequence:
     # ---------------------------------------------------------------- 指标
     @property
     def ttft(self) -> float | None:
-        """Time to first token (prefill + one decode step)."""
+        """首 token 时间（prefill + 一次 decode 步）。"""
         if self.first_token_time is None:
             return None
         return self.first_token_time - self.arrival_time

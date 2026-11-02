@@ -126,13 +126,11 @@ def text_stats(text: str) -> str:
 
 
 class Sandbox:
-    """A directory that file tools may not escape from.
+    """文件工具不许逃出去的目录。
 
-    It is also the run's memory of what has been *seen*: every read records the
-    file's hash, and every mutating tool refuses to touch a file that already
-    exists but was never read, or that changed after it was read.  That is
-    optimistic concurrency control over a filesystem, and it is what stops a model
-    from appending to a file it never looked at.
+    它同时也是本次运行「看过什么」的记忆：每次读都会记下文件哈希，而每个改动类工具都拒绝
+    去碰一个「已经存在但从未被读过」或者「读完之后变过」的文件。这就是在文件系统上做
+    乐观并发控制，也是它拦住模型往一个从没看过的文件后面追加内容的原因。
     """
 
     def __init__(self, root: str | Path) -> None:
@@ -152,15 +150,15 @@ class Sandbox:
         return hashlib.sha256(path.read_bytes()).hexdigest()
 
     def observe(self, path: Path) -> None:
-        """Record the file's current content so a later write can detect drift."""
+        """记下文件当前内容，好让后面的写操作能发现它被改过。"""
         self._seen[path] = self._digest(path)
 
     def observed_forget(self, path: Path) -> None:
-        """Drop a path from the memory of observed files (it no longer exists)."""
+        """把一个路径从「看过」的记忆里删掉（它已经不存在了）。"""
         self._seen.pop(path, None)
 
     def check_writable(self, path: Path, tool: str) -> None:
-        """Refuse to mutate a file this run has not read, or has seen change."""
+        """拒绝改动一个本次运行没读过、或已被发现变过的文件。"""
         if not path.is_file():
             return  # 新建一个文件永远是安全的
         if path not in self._seen:
@@ -176,7 +174,7 @@ class Sandbox:
 
 
 def make_file_tools(sandbox: Sandbox | None = None) -> list[Tool]:
-    """Build the sandboxed filesystem tools bound to one root directory."""
+    """构建绑定到某个根目录的沙箱文件工具。"""
     box = sandbox or Sandbox(Path.cwd() / "agent_workspace")
 
     @tool(name="read_file", reads="path")
@@ -217,22 +215,21 @@ def make_file_tools(sandbox: Sandbox | None = None) -> list[Tool]:
 
 
 def _receipt(target: Path) -> str:
-    """One-line description of a file -- cheap enough to return as the observation."""
+    """一行描述这个文件 —— 便宜到可以当观察结果返回。"""
     text = target.read_text(encoding="utf-8", errors="replace")
     return f"{len(text.splitlines())} lines, {target.stat().st_size} bytes"
 
 
 def _preview(text: str, limit: int = 48) -> str:
-    """Trim a snippet for a receipt; ``repr`` in the caller escapes any newlines."""
+    """为回执裁剪一段片段；换行由调用方的 ``repr`` 负责转义。"""
     return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
 def _change_summary(before: str, old: str, new: str) -> str:
-    """Say *where* the edit landed, in the form the model actually needs: a line number.
+    """说清这次编辑落在*哪里*，用模型真正需要的形式：行号。
 
-    Without this the receipt is just "edited todo.txt (3 lines, 46 bytes)", which
-    cannot distinguish "I changed line 2" from "I changed line 1" -- and that
-    distinction was the entire task.
+    没有它，回执就只是「edited todo.txt (3 lines, 46 bytes)」，分不清「我改了第 2 行」
+    和「我改了第 1 行」—— 而这个区别正是整个任务本身。
     """
     index = before.index(old)
     first = before.count("\n", 0, index) + 1
@@ -242,22 +239,19 @@ def _change_summary(before: str, old: str, new: str) -> str:
 
 
 def make_write_tools(sandbox: Sandbox | None = None) -> list[Tool]:
-    """Build the *mutating* filesystem tools, bound to one root directory.
+    """构建*会改动*的文件系统工具，绑定到某个根目录。
 
-    Deliberately separate from :func:`make_file_tools`: reading is harmless, so the
-    read tools ship by default; writing is a capability you hand out on purpose.
-    Every tool here follows three rules:
+    刻意与 :func:`make_file_tools` 分开：读是无害的，所以读工具默认就发；写是一种能力，
+    要你主动交出去。这里的每个工具守三条规矩：
 
-    * the path goes through :meth:`Sandbox.resolve`, so ``..`` and absolute paths
-      are refused by comparison, never by string filtering;
-    * a failure is a readable ``ValueError`` -- the registry turns it into an
-      observation, so the message has to say what the model should do next;
-    * the return value is a receipt, not the file's contents: the model already
-      knows what it wrote, and every observation costs context.
+    * 路径必须过 :meth:`Sandbox.resolve`，所以 ``..`` 和绝对路径是被**比较**拒绝的，
+      从来不是字符串过滤；
+    * 失败是一个能读懂的 ``ValueError`` —— 注册表会把它变成观察结果，所以消息必须说清
+      模型下一步该做什么；
+    * 返回值是回执，不是文件内容：模型已经知道自己写了什么，而每条观察都要花上下文。
 
-    ``write_lines`` exists because a JSON array of short strings is the one shape a
-    small model reliably gets right; embedding ``\\n`` inside a JSON string is where
-    it usually breaks.
+    ``write_lines`` 之所以存在，是因为「一串短字符串的 JSON 数组」是小模型唯一稳定写对的
+    形状；把 ``\n`` 塞进 JSON 字符串里通常就是它翻车的地方。
     """
 
     box = sandbox or Sandbox(Path.cwd() / "agent_workspace")
@@ -360,10 +354,9 @@ def make_write_tools(sandbox: Sandbox | None = None) -> list[Tool]:
 
 
 def default_tools(workspace: str | Path | None = None) -> list[Tool]:
-    """The tool set used by the demo: calculator + text stats + sandboxed files.
+    """demo 用的工具集：calculator + 文本统计 + 沙箱文件。
 
-    Read-only on purpose: ``default_tools`` is what every demo and test starts from,
-    so it must not be able to destroy anything.  Add :func:`make_write_tools` when a
-    task genuinely needs to write.
+    刻意保持只读：``default_tools`` 是每个 demo 和测试的起点，所以它绝不能有能力毁掉任何
+    东西。当任务真的需要写时，再额外加上 :func:`make_write_tools`。
     """
     return [calculator, text_stats, *make_file_tools(Sandbox(workspace) if workspace else None)]
