@@ -15,11 +15,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.6"]
+dev = ["pytest>=8", "ruff>=0.6", "httpx>=0.27"]
 mysql = ["pymysql>=1.1"]
+serve = ["fastapi>=0.110", "uvicorn>=0.29", "httpx>=0.27"]
 
 [tool.setuptools.packages.find]
-include = ["minivllm*", "miniagent*"]
+include = ["minivllm*", "miniagent*", "serve*"]
+
+[tool.setuptools.package-data]
+serve = ["static/*.html"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

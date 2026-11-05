@@ -55,6 +55,7 @@
 | 安全计算器 | [builtin_tools.py](miniagent/builtin_tools.py) | 走 AST 而不是 `eval`；文件访问锁在沙箱内 |
 | 只读查库 | [sql_tools.py](miniagent/sql_tools.py) | 标识符先验证再加引号，值永远绑定参数，会话层强制只读 |
 | 可换后端 | [backends.py](miniagent/backends.py) | 脚本 / 本地引擎 / 任何 OpenAI 兼容端点 |
+| 多轮对话服务 | [serve/](serve/app.py) | `POST /chat` + SSE 流式，上下文放服务端，token 级增量 |
 
 ```powershell
 python scripts\agent_demo.py                            # 确定性，无需 GPU
@@ -63,6 +64,7 @@ python scripts\agent_demo.py --backend local            # 真实 0.5B 模型
 python scripts\agent_sql_demo.py                        # 只读查本地副本（53 列，自动建库）
 python scripts\agent_sql_demo.py --explore              # 直接倒 schema，不走模型
 python scripts\agent_sql_demo.py --mysql                # 真库，仅内网可达
+python scripts\serve_chat.py                           # 聊天界面 http://127.0.0.1:8000
 ```
 
 > `agent_workspace\sqldemo.db` 是参考库 `dba04_cy4` 的离线副本：53 列同名同类型，
@@ -73,7 +75,7 @@ python scripts\agent_sql_demo.py --mysql                # 真库，仅内网可�
 ```powershell
 uv venv --python 3.10 .venv
 uv pip install --python .venv\Scripts\python.exe torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
-uv pip install --python .venv\Scripts\python.exe -e ".[dev]"
+uv pip install --python .venv\Scripts\python.exe -e ".[dev,serve]"
 ```
 
 模型（约 1 GiB）：

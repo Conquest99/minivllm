@@ -44,6 +44,8 @@ miniagent/agent.md      ★ ReAct 循环
         ↓
 miniagent/backends.md   →  builtin_tools.md  →  scripts-agent_demo.md
         ↓
+miniagent/serve.md         多轮会话 + FastAPI/SSE，把它跑成一个能一直聊的服务
+        ↓
 miniagent/tests-*.md       控制流全部分支 + 安全边界
 ```
 

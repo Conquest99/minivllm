@@ -190,9 +190,9 @@ def test_tools_are_advertised_to_the_backend():
     backend = CallableBackend(record)
     original = backend.complete
 
-    def spy(messages, *, tools=None, max_tokens=None):
+    def spy(messages, *, tools=None, max_tokens=None, on_token=None):
         seen["tools"] = tools
-        return original(messages, tools=tools, max_tokens=max_tokens)
+        return original(messages, tools=tools, max_tokens=max_tokens, on_token=on_token)
 
     backend.complete = spy  # type: ignore[method-assign]
     Agent(backend, [calculator, text_stats]).run("hi")

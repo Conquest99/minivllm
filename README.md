@@ -59,6 +59,7 @@ Part two, [miniagent](miniagent/), is a hand-written agent loop on top of this e
 | Safe calculator | [builtin_tools.py](miniagent/builtin_tools.py) | walks the AST instead of calling `eval`; sandboxed file access |
 | Read-only SQL | [sql_tools.py](miniagent/sql_tools.py) | identifiers validated *then* quoted, values always bound, session forced read-only |
 | Swappable backends | [backends.py](miniagent/backends.py) | scripted / local engine / any OpenAI-compatible endpoint |
+| Multi-turn chat over HTTP | [serve/](serve/app.py) | `POST /chat` with SSE, context kept server-side, token-level streaming |
 
 ```powershell
 python scripts\agent_demo.py                            # deterministic, no GPU
@@ -67,6 +68,7 @@ python scripts\agent_demo.py --backend local            # the real 0.5B checkpoi
 python scripts\agent_sql_demo.py                        # read-only SQL over the local replica
 python scripts\agent_sql_demo.py --explore               # dump the schema, no model involved
 python scripts\agent_sql_demo.py --mysql                 # the real table (intranet only)
+python scripts\serve_chat.py                            # chat UI at http://127.0.0.1:8000
 ```
 
 > `agent_workspace\sqldemo.db` is an offline replica of the reference `dba04_cy4`: the
@@ -78,7 +80,7 @@ python scripts\agent_sql_demo.py --mysql                 # the real table (intra
 ```powershell
 uv venv --python 3.10 .venv
 uv pip install --python .venv\Scripts\python.exe torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
-uv pip install --python .venv\Scripts\python.exe -e ".[dev]"
+uv pip install --python .venv\Scripts\python.exe -e ".[dev,serve]"
 ```
 
 Model (~1 GiB):

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>miniagent chat</title>
+<style>
+  :root {
+    --bg: #10131a;
+    --panel: #171b24;
+    --line: #262c3a;
+    --text: #e6e9ef;
+    --dim: #8b93a7;
+    --accent: #6aa8ff;
+    --ok: #4ade80;
+    --bad: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.6 -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+    font-size: 13px;
+  }
+  header .title { font-weight: 600; }
+  header .sid { color: var(--dim); font-family: ui-monospace, Consolas, monospace; }
+  header .spacer { flex: 1; }
+  button {
+    background: #222836;
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: default; }
+  #log { flex: 1; overflow-y: auto; padding: 20px 16px 8px; }
+  .row { max-width: 860px; margin: 0 auto 16px; display: flex; gap: 10px; }
+  .row.user { justify-content: flex-end; }
+  .bubble {
+    border-radius: 10px;
+    padding: 10px 14px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .user .bubble { background: #24405f; }
+  .agent .bubble { background: var(--panel); border: 1px solid var(--line); }
+  .agent .bubble:empty { display: none; }
+  .role { color: var(--dim); font-size: 12px; margin-bottom: 4px; }
+  .tools { max-width: 860px; margin: -6px auto 16px; padding-left: 46px; }
+  details {
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    background: #131720;
+    font-size: 13px;
+  }
+  details.fail { border-left-color: var(--bad); }
+  details summary {
+    cursor: pointer;
+    padding: 7px 10px;
+    font-family: ui-monospace, Consolas, monospace;
+    color: var(--accent);
+  }
+  details.fail summary { color: var(--bad); }
+  details pre {
+    margin: 0;
+    padding: 0 10px 10px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    color: var(--dim);
+    font-family: ui-monospace, Consolas, monospace;
+  }
+  .notes { max-width: 860px; margin: -8px auto 16px; padding-left: 46px; color: #f0b429; font-size: 12px; }
+  footer { border-top: 1px solid var(--line); background: var(--panel); padding: 12px 16px; }
+  .composer { max-width: 860px; margin: 0 auto; display: flex; gap: 10px; }
+  textarea {
+    flex: 1;
+    resize: none;
+    background: #0e1118;
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font: inherit;
+    height: 52px;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+  .hint { max-width: 860px; margin: 8px auto 0; color: var(--dim); font-size: 12px; }
+  .cursor::after { content: "▌"; animation: blink 1s steps(2) infinite; color: var(--accent); }
+  @keyframes blink { 50% { opacity: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <span class="title">miniagent</span>
+  <span>session</span><span class="sid" id="sid">—</span>
+  <span class="spacer"></span>
+  <button id="new">新对话</button>
+</header>
+
+<div id="log"></div>
+
+<footer>
+  <div class="composer">
+    <textarea id="input" placeholder="问点什么…（Enter 发送，Shift+Enter 换行）"></textarea>
+    <button id="send">发送</button>
+  </div>
+  <div class="hint">上下文保存在服务端；刷新页面会接着上一轮继续，「新对话」才会清空。</div>
+</footer>
+
+<script>
+const log = document.getElementById("log");
+const input = document.getElementById("input");
+const sendBtn = document.getElementById("send");
+const newBtn = document.getElementById("new");
+const sidEl = document.getElementById("sid");
+
+let sessionId = localStorage.getItem("miniagent-session") || null;
+let busy = false;
+
+function setSession(id) {
+  sessionId = id;
+  if (id) localStorage.setItem("miniagent-session", id);
+  else localStorage.removeItem("miniagent-session");
+  sidEl.textContent = id || "—";
+}
+setSession(sessionId);
+
+function scrollDown() { log.scrollTop = log.scrollHeight; }
+
+function addUser(text) {
+  const row = document.createElement("div");
+  row.className = "row user";
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.textContent = text;
+  row.appendChild(bubble);
+  log.appendChild(row);
+  scrollDown();
+}
+
+/** 一个 agent 回合 = 一个气泡 + 若干工具卡 + 若干提示。 */
+function addAgentTurn() {
+  const row = document.createElement("div");
+  row.className = "row agent";
+  row.innerHTML = '<div><div class="role">assistant</div><div class="bubble"></div></div>';
+  log.appendChild(row);
+  const tools = document.createElement("div");
+  tools.className = "tools";
+  log.appendChild(tools);
+  scrollDown();
+  return { bubble: row.querySelector(".bubble"), tools, row };
+}
+
+function addToolCard(container, name, args) {
+  const card = document.createElement("details");
+  card.open = false;
+  const summary = document.createElement("summary");
+  summary.textContent = `${name}(${JSON.stringify(args)})`;
+  const pre = document.createElement("pre");
+  pre.textContent = "…";
+  card.append(summary, pre);
+  container.appendChild(card);
+  scrollDown();
+}
+
+function addNote(text) {
+  const div = document.createElement("div");
+  div.className = "notes";
+  div.textContent = text;
+  log.appendChild(div);
+  scrollDown();
+}
+
+/** 气泡里只放散文：<tool_call> 是给 agent 的机器指令，不是给人读的话。
+ *
+ * 流式期间块可能只到了半截，所以未闭合的部分也一起藏掉 —— 否则用户会看到
+ * JSON 一个字一个字地长出来。
+ */
+function proseOnly(text) {
+  return text
+    .replace(/<tool_call>[\s\S]*?<\/tool_call>/g, "")
+    .replace(/<tool_call>[\s\S]*$/, "")
+    .replace(/<\/?tool_call>/g, "")
+    .trim();
+}
+
+/** 逐帧读 SSE：空行分隔一帧，帧内 event:/data: 两行。 */
+async function* readSSE(response) {
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buffer.indexOf("\n\n")) >= 0) {
+      const frame = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+      if (!frame.trim()) continue;
+      let event = "message";
+      let data = "";
+      for (const line of frame.split("\n")) {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        else if (line.startsWith("data:")) data += line.slice(5).trim();
+      }
+      yield { event, data: data ? JSON.parse(data) : {} };
+    }
+  }
+}
+
+async function send() {
+  const text = input.value.trim();
+  if (!text || busy) return;
+  busy = true;
+  sendBtn.disabled = true;
+  input.value = "";
+  addUser(text);
+
+  const turn = addAgentTurn();
+  turn.bubble.classList.add("cursor");
+  let current = "";
+
+  try {
+    const response = await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text, session_id: sessionId }),
+    });
+    if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+
+    const headerSid = response.headers.get("X-Session-Id");
+    if (headerSid) setSession(headerSid);
+
+    for await (const { event, data } of readSSE(response)) {
+      if (event === "token") {
+        current += data.text;
+        turn.bubble.textContent = proseOnly(current);
+        scrollDown();
+      } else if (event === "call") {
+        addToolCard(turn.tools, data.name, data.arguments);
+      } else if (event === "result") {
+        // 结果按出现顺序填回最近一个还空着的卡片
+        for (const card of turn.tools.querySelectorAll("details")) {
+          const pre = card.querySelector("pre");
+          if (pre.textContent === "…") {
+            pre.textContent = data.content;
+            card.classList.toggle("fail", !data.ok);
+            break;
+          }
+        }
+      } else if (event === "note" || event === "parse_error") {
+        addNote((event === "note" ? "" : "parse error: ") + data.message);
+      } else if (event === "done") {
+        if (!proseOnly(current)) turn.bubble.textContent = data.answer;
+        current = "";
+        turn.bubble.classList.remove("cursor");
+        addNote(`stopped=${data.stopped} · steps=${data.steps} · tools=${data.tool_calls} · ${data.duration_s}s`);
+      } else if (event === "error") {
+        turn.bubble.classList.remove("cursor");
+        addNote(`ERROR ${data.type}: ${data.message}`);
+        if (/max_model_len|exceeds/.test(data.message)) {
+          addNote("上下文超长：点「新对话」清空，或把服务端的 --max-turns 调小。");
+        }
+      }
+    }
+  } catch (err) {
+    turn.bubble.classList.remove("cursor");
+    addNote("连接失败：" + err.message);
+  } finally {
+    turn.bubble.classList.remove("cursor");
+    busy = false;
+    sendBtn.disabled = false;
+    input.focus();
+  }
+}
+
+sendBtn.addEventListener("click", send);
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    send();
+  }
+});
+
+newBtn.addEventListener("click", async () => {
+  if (busy) return;
+  if (sessionId) await fetch("/sessions/" + sessionId, { method: "DELETE" }).catch(() => {});
+  setSession(null);
+  log.innerHTML = "";
+  input.focus();
+});
+
+// 刷新后把服务端记住的历史画回来
+(async () => {
+  if (!sessionId) return;
+  try {
+    const res = await fetch("/sessions/" + sessionId);
+    if (!res.ok) { setSession(null); return; }
+    const data = await res.json();
+    for (const m of data.history) {
+      if (m.role === "user") addUser(m.content);
+      else if (m.role === "assistant" && m.content) {
+        const row = document.createElement("div");
+        row.className = "row agent";
+        row.innerHTML = '<div><div class="role">assistant</div><div class="bubble"></div></div>';
+        row.querySelector(".bubble").textContent = m.content;
+        log.appendChild(row);
+      }
+    }
+    scrollDown();
+  } catch { setSession(null); }
+})();
+</script>
+</body>
+</html>

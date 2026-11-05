@@ -38,8 +38,10 @@ loop:
 | [scripts/agent_demo.py](../../scripts/agent_demo.py) | 逐步打印 trace | 三种后端，从确定性到真实模型 | [scripts-agent_demo.md](scripts-agent_demo.md) |
 | [scripts/agent_files_demo.py](../../scripts/agent_files_demo.py) | 真的建/改文件，并对比磁盘内容 | 小模型改错行还自信报成功的现场 | [scripts-agent_files_demo.md](scripts-agent_files_demo.md) |
 | [scripts/agent_sql_demo.py](../../scripts/agent_sql_demo.py) | 只读查库，`--explore` 直接倒 schema | 三种后端；SQLite 免服务器，MySQL 需凭据 | [sql_tools.md](sql_tools.md) |
+| [serve/app.py](../../serve/app.py) + [sessions.py](../../serve/sessions.py) | `POST /chat` 多轮 + SSE 流式 | 上下文放服务端；事件协议；模型锁的粒度 | [serve.md](serve.md) |
+| [scripts/serve_chat.py](../../scripts/serve_chat.py) | 起服务：后端 / 工具 / 提示词装配 | `--max-turns` 控制上下文长度 | [serve.md](serve.md) |
 
-测试（157 个，纯 CPU、无需模型/服务器）：
+测试（219 个；除 e2e 外都是纯 CPU、无需模型/服务器）：
 
 | 文件 | 验证什么 | 文档 |
 |---|---|---|
@@ -47,8 +49,9 @@ loop:
 | [test_agent_parser.py](../../tests/test_agent_parser.py) | 4 种方言 + 容错 + 从不抛异常 | [tests-parser.md](tests-parser.md) |
 | [test_agent_loop.py](../../tests/test_agent_loop.py) | 控制流全部分支 + 六条护栏 | [tests-loop.md](tests-loop.md) |
 | [test_agent_sql_tools.py](../../tests/test_agent_sql_tools.py) | 真 SQL、注入面、只读强制、中文标识符、静默错误的拒绝 | [sql_tools.md](sql_tools.md) |
+| [test_serve.py](../../tests/test_serve.py) | SSE 帧格式、按轮裁剪、多轮上下文、异常不断流 | [serve.md](serve.md) |
 
-**建议阅读顺序**：本页（伪代码）→ `types` → `tools` → `parser` → `agent` → `backends` → `builtin_tools` → `sql_tools` → 三个 demo → 测试。
+**建议阅读顺序**：本页（伪代码）→ `types` → `tools` → `parser` → `agent` → `backends` → `builtin_tools` → `sql_tools` → 三个 demo → `serve` → 测试。
 
 ---
 

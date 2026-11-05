@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 
 import torch
@@ -77,6 +78,14 @@ class LLMEngine:
         self._next_seq_id = 0
         self._outputs: dict[int, RequestOutput] = {}
         self.metrics = EngineMetrics()
+
+        # 流式输出用的两个槽位：一个回调 + 每条序列已经发出去多少字符。
+        # 之所以按「已发字符数」而不是「已发 token 数」记账，是因为一个中文字
+        # 常被切成多个 token，逐 token 解码会吐出半个字符（U+FFFD）。
+        self._token_sink: Callable[[int, str], None] | None = None
+        self._sent_chars: dict[int, int] = {}
+        self.last_output: RequestOutput | None = None
+        """最近一次 ``generate_stream`` 结束时的完整输出，给需要元信息的调用方。"""
 
     # ------------------------------------------------------------- 请求
     def _encode_prompt(self, prompt: str) -> list[int]:
@@ -141,6 +150,8 @@ class LLMEngine:
             if seq.first_token_time is None:
                 seq.first_token_time = now
             self.metrics.num_generation_tokens += 1
+            if self._token_sink is not None:
+                self._token_sink(seq.seq_id, self._new_text(seq))
 
             if token_id in self.model_runner.eos_token_ids and not params.ignore_eos:
                 seq.mark_finished(SequenceStatus.FINISHED_STOPPED)
@@ -154,6 +165,27 @@ class LLMEngine:
 
     def _decoded_output(self, seq: Sequence) -> str:
         return self.model_runner.decode(seq.data[seq.num_prompt_tokens :])
+
+    def _new_text(self, seq: Sequence) -> str:
+        """Decode the whole output so far and return only what has not been sent yet.
+
+        Decoding the *full* prefix every step is O(n) per token, so O(n^2) overall --
+        fine for the few hundred tokens this engine produces, and it is the only way to
+        stay correct when a character spans several tokens.
+
+        一个中文常用字常被切成几个 byte-level token。如果就在字符中间解码，末尾会得到
+        U+FFFD；而它和真正那个字都是「一个字符」，按长度差下发就会把真字永久吞掉
+        （实测：``函数`` 变成 ``\\ufffd数``）。所以末尾的替换符先扣住不发，等下一个
+        token 补完再一起吐。
+        """
+        text = self._decoded_output(seq)
+        if text.endswith("\ufffd"):
+            text = text[:-1]
+        sent = self._sent_chars.get(seq.seq_id, 0)
+        if len(text) <= sent:
+            return ""
+        self._sent_chars[seq.seq_id] = len(text)
+        return text[sent:]
 
     def _make_output(self, seq: Sequence) -> RequestOutput:
         return RequestOutput(
@@ -187,6 +219,42 @@ class LLMEngine:
                 done[out.seq_id] = out
         self.metrics.wall_time += time.perf_counter() - t0
         return [done[i] for i in ids]
+
+    def generate_stream(self, prompt: str, params: SamplingParams | None = None) -> Iterator[str]:
+        """边跑边吐文本增量，一次只服务一条 prompt。
+
+        必须一次一条：``step()`` 是批处理的入口，而「这条增量属于哪个请求」在多请求
+        场景下要靠 seq_id 区分；流式接口的语义是「一条流」，所以这里就把并发留给上层
+        —— 真实服务里，多路流是在共享的 ``step()`` 之上fan-out 出来的，不是各开一个
+        引擎。
+
+        拼接所有增量 == ``generate()`` 返回的 ``out.text``，这一点有测试锁住。
+        """
+        params = params or SamplingParams()
+        t0 = time.perf_counter()
+        self.add_request(prompt, params)
+        self.last_output = None
+
+        pending: list[str] = []
+
+        def sink(_seq_id: int, delta: str) -> None:
+            if delta:
+                pending.append(delta)
+
+        self._token_sink = sink
+        try:
+            while self.scheduler.has_unfinished():
+                for finished in self.step():
+                    # step() 每次都会清空内部输出表，所以这里必须接住，否则 finally
+                    # 里再 drain 就什么也拿不到了。
+                    self.last_output = finished
+                if pending:
+                    yield "".join(pending)
+                    pending.clear()
+        finally:
+            self._token_sink = None
+            self._sent_chars.clear()
+            self.metrics.wall_time += time.perf_counter() - t0
 
     # ---------------------------------------------------------------- 统计
     def stats(self) -> dict[str, float]:

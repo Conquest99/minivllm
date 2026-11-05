@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import time
 from collections import Counter
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 
 from miniagent.backends import LLMBackend
 from miniagent.parser import parse
@@ -87,6 +87,7 @@ class Agent:
         max_write_retries: int = 2,
         max_readback_retries: int = 2,
         on_step: Callable[[Step], None] | None = None,
+        on_token: Callable[[str], None] | None = None,
     ) -> None:
         self.backend = backend
         self.tools = tools if isinstance(tools, ToolRegistry) else ToolRegistry(tools)
@@ -99,6 +100,13 @@ class Agent:
         self.max_write_retries = max_write_retries
         self.max_readback_retries = max_readback_retries
         self.on_step = on_step
+        self.on_token = on_token
+        """文本增量的接收方，原样传给后端。
+
+        它不是「事件」，是「正在生成的字符」——所以和 ``on_step`` 分开：一个在模型说话
+        时被调用几千次，一个在一轮结束时被调用一次。混成一个回调会让调用方每收到一个
+        字符就去判断「这是 token 还是 step」。
+        """
         self.trace: list[Step] = []
 
     # ------------------------------------------------------------------ 辅助方法
@@ -132,12 +140,20 @@ class Agent:
         return AgentResult(**kwargs)
 
     # --------------------------------------------------------------------- 主循环
-    def run(self, question: str) -> AgentResult:
+    def run(self, question: str, *, history: Sequence[Message] | None = None) -> AgentResult:
+        """跑一轮；``history`` 给多轮对话用。
+
+        ``history`` 就是上一次 ``AgentResult.messages``：循环本来就把整段对话记在里面，
+        所以「记住上下文」不需要任何额外机制，只要下一轮从那个列表接着写。
+
+        用 ``Sequence`` 而不是 ``list``，是为了避免调用方以为这里的追加会回写到它传进来
+        的列表里——``list(history)`` 复制一份，原列表不动。
+        """
         started = time.perf_counter()
-        messages: list[Message] = [
-            Message(Role.SYSTEM, self.system_prompt),
-            Message(Role.USER, question),
-        ]
+        messages: list[Message] = list(history) if history else []
+        if not messages or messages[0].role is not Role.SYSTEM:
+            messages.insert(0, Message(Role.SYSTEM, self.system_prompt))
+        messages.append(Message(Role.USER, question))
         steps: list[Step] = []
         seen: Counter[str] = Counter()
         parse_errors = 0
@@ -163,9 +179,11 @@ class Agent:
 
             try:
                 reply = self.backend.complete(
-                    messages, tools=self.tool_schemas or None, max_tokens=self.max_tokens
+                    messages,
+                    tools=self.tool_schemas or None,
+                    max_tokens=self.max_tokens,
+                    on_token=self.on_token,
                 )
-                print(f"DEBUG: backend reply: {reply}")
             except Exception as exc:
                 step = Step(index=index, assistant_text="", parse_errors=[f"backend: {exc}"])
                 step.duration_s = time.perf_counter() - step_started
@@ -207,6 +225,9 @@ class Agent:
 
                 steps.append(step)
                 self._emit(step)
+                # 最终答案也要写进 messages：多轮对话靠的就是这份记录，漏了这一条，
+                # 下一轮模型就不知道上一轮自己回答过什么（它只看得见 tool 结果）。
+                messages.append(Message(Role.ASSISTANT, parsed.text.strip() or reply.strip()))
                 if failed_writes:
                     reason = StopReason.WRITE_INCOMPLETE
                 elif dirty:
