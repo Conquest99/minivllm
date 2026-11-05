@@ -16,9 +16,13 @@
 张表里挑对那一张；没有（``--no-domain-notes``），它就只能在 ``dba04``、``dba04_cy1``
 和 ``dba04_cy4`` 之间猜，而猜错照样会返回一个看起来很合理的行数。
 
-sqlite 模式会在 ``agent_workspace/sqldemo.db`` 建一个迷你的 ``dba04_cy4`` 加两张诱饵
-表，所以整个流程可以离线、可重复地跑。工具也是这么测的：``sqlite3`` 和 ``pymysql``
-都是 DB-API 2.0，同一份策略代码对两者都成立。
+sqlite 模式会在 ``agent_workspace/sqldemo.db`` 建一份**离线副本**：同样是 53 列、
+同样的列名和类型，只是数据是编的（14 行）。所以整个流程可以离线、可重复地跑，而且
+``describe_table`` 看到的形状和内网服务器一致。工具也是这么测的：``sqlite3`` 和
+``pymysql`` 都是 DB-API 2.0，同一份策略代码对两者都成立。
+
+> 参考服务器（217 万行的那份）只能从内网访问。``--mysql`` 连不上时会直接报一句
+> 「只能在公司网络用」并退出，而不是等到某个工具调用里冒出 pymysql 栈追踪。
 
 这里什么都不可能写。沙箱把会话本身置为只读并验证它；每条语句都由校验过的标识符加
 绑定值构建；结尾的 ``statements executed`` 就是审计记录。
@@ -73,46 +77,185 @@ Domain notes (Chinese oilfield monthly report database; these conventions are re
 
 调用形状（照抄结构，不要照抄数值）:
 
-    query_table(table="dba04_cy4", where=["HS > 25", "HS < 28"], order_by="NY desc", limit=20)
+    query_table(table="dba04_cy4", columns=["JH", "NY", "HS"],
+                where=["HS > 25", "HS < 28"], order_by="NY desc", limit=20)
 
 `where` 是列表，一个元素一个条件，不要写成 ["HS > 25 AND HS < 28"]；
 `order_by` 是列名（可加 desc），不要只写 "ASC"。
+`columns` 要写清要哪几列 —— 这张表有 53 列，不写就是 53 列全返回。
 
 Call shape (copy the structure, not the values):
 
-    query_table(table="dba04_cy4", where=["HS > 25", "HS < 28"], order_by="NY desc", limit=20)
+    query_table(table="dba04_cy4", columns=["JH", "NY", "HS"],
+                where=["HS > 25", "HS < 28"], order_by="NY desc", limit=20)
 
 `where` is a list with one condition per element; never ["HS > 25 AND HS < 28"].
 `order_by` is a column name, optionally with desc; never just "ASC".
+Always name the `columns` you need: this table has 53 of them.
 """
 
 EXPECTED_MYSQL_COUNT = 7194
 """Rows matching HS > 25 AND HS < 28 in dba04_cy4 on the reference server (2,173,779 rows).
-Handy as ``--expect-count 7194`` when you want the demo to check itself."""
 
-SAMPLE_SCHEMA = """
--- mirrors the shape of the real dba04_cy4 (53 columns there; four are enough here)
-CREATE TABLE dba04_cy4 (JH TEXT, NY TEXT, HS REAL, CYFS TEXT);
-INSERT INTO dba04_cy4 (JH, NY, HS, CYFS) VALUES
-    ('X7-4-46', '198206', 26.0, '1B2'),
-    ('X7-4-46', '198207', 27.5, '1B2'),
-    ('X7-4-46', '198208', 28.0, '1B2'),   -- boundary: excluded
-    ('X7-4-47', '198206', 25.0, '1B2'),   -- boundary: excluded
-    ('X7-4-47', '198207', 30.0, '1B2'),
-    ('X7-4-48', '198206', 21.0, '1B2'),
-    ('X7-4-48', '198207', 25.5, '1B2'),
-    ('X7-4-49', '198206', NULL, '1B2'),   -- no measurement: excluded
-    ('N6-D3-P2126', '198206', 26.5, '2A1'),
-    ('N6-D3-P2126', '198207', 24.0, '2A1');
--- a decoy table: the "plant 1" shard and a bare dba04
-CREATE TABLE dba04_cy1 (JH TEXT, NY TEXT, HS REAL);
-INSERT INTO dba04_cy1 (JH, NY, HS) VALUES ('X7-4-46', '198206', 26.0);
-CREATE TABLE dba04 (JH TEXT, NY TEXT, HS REAL);
-INSERT INTO dba04 (JH, NY, HS) VALUES ('X7-4-46', '198206', 26.0);
+That server is only reachable from the intranet, so ``--mysql`` fails at home.  The
+offline path below replicates the same 53 columns locally instead; use
+``--expect-count 7194`` only when you are actually on the intranet."""
+
+DBA04_CY4_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("JH", "TEXT"),
+    ("NY", "TEXT"),
+    ("SCTS", "REAL"),
+    ("CYFS", "TEXT"),
+    ("BJ", "REAL"),
+    ("BS", "REAL"),
+    ("PL", "REAL"),
+    ("YZ", "REAL"),
+    ("CC", "REAL"),
+    ("CC1", "REAL"),
+    ("YY", "REAL"),
+    ("TY", "REAL"),
+    ("LY", "REAL"),
+    ("JY", "REAL"),
+    ("DYM", "REAL"),
+    ("JYM", "REAL"),
+    ("RCYL", "REAL"),
+    ("RCSL", "REAL"),
+    ("HS", "REAL"),
+    ("YCYL", "REAL"),
+    ("YCSL", "REAL"),
+    ("YCQL", "REAL"),
+    ("NCYL", "REAL"),
+    ("NCSL", "REAL"),
+    ("NCQL", "REAL"),
+    ("LJCYL", "REAL"),
+    ("LJCSL", "REAL"),
+    ("LJCQL", "REAL"),
+    ("CCYND", "REAL"),
+    ("HSL1", "REAL"),
+    ("BZDM1", "TEXT"),
+    ("BZDM2", "TEXT"),
+    ("BZDM3", "TEXT"),
+    ("BZDM4", "TEXT"),
+    ("YZYL", "REAL"),
+    ("NZYL", "REAL"),
+    ("LJZYL", "REAL"),
+    ("BZ", "TEXT"),
+    ("CW", "TEXT"),
+    ("BX", "REAL"),
+    ("SCJDDS", "REAL"),
+    ("SCJDDS1", "REAL"),
+    ("HSYCYL", "REAL"),
+    ("HSYCSL", "REAL"),
+    ("HSYCQL", "REAL"),
+    ("HSNCYL", "REAL"),
+    ("HSNCSL", "REAL"),
+    ("HSNCQL", "REAL"),
+    ("HSLJCYL", "REAL"),
+    ("HSLJCSL", "REAL"),
+    ("HSLJCQL", "REAL"),
+    ("RCBZ", "TEXT"),
+    ("_NullFlags", "TEXT"),
+)
+"""The 53 columns of the reference server's ``dba04_cy4``, in table order.
+
+Real column names and types, so ``describe_table`` shows the same shape the intranet
+server does.  Kept as data rather than DDL text so the count cannot drift: a wrong
+number here would make the offline demo teach the wrong schema."""
+
+# Fabricated rows.  Only about a dozen columns are filled -- the reference table is
+# mostly NULL too, and a full 53-column INSERT would bury the interesting values.
+SAMPLE_ROWS: tuple[dict[str, object], ...] = (
+    # 25 < HS < 28 -- these are the answer
+    {"JH": "X7-4-46", "NY": "198206", "HS": 26.0, "CYFS": "1B2", "SCTS": 30.0, "PL": 0.0},
+    {"JH": "X7-4-46", "NY": "198207", "HS": 27.5, "CYFS": "1B2", "SCTS": 30.0, "PL": 0.0},
+    {"JH": "X7-4-48", "NY": "198207", "HS": 25.5, "CYFS": "1B2", "SCTS": 31.0, "PL": 0.0},
+    {"JH": "N6-D3-P2126", "NY": "198206", "HS": 26.5, "CYFS": "2A1", "SCTS": 28.0, "PL": 1.2},
+    {"JH": "N6-D3-P2126", "NY": "198208", "HS": 27.2, "CYFS": "2A1", "SCTS": 28.0, "PL": 1.2},
+    {"JH": "N6-D3-P2127", "NY": "198208", "HS": 25.9, "CYFS": "2A1", "SCTS": 27.0, "PL": 0.8},
+    # boundary: 28.0 and 25.0 are outside the open interval
+    {"JH": "X7-4-46", "NY": "198208", "HS": 28.0, "CYFS": "1B2", "SCTS": 30.0, "PL": 0.0},
+    {"JH": "X7-4-47", "NY": "198206", "HS": 25.0, "CYFS": "1B2", "SCTS": 32.0, "PL": 0.0},
+    # outside the interval for other reasons
+    {"JH": "X7-4-47", "NY": "198207", "HS": 30.0, "CYFS": "1B2", "SCTS": 32.0, "PL": 0.0},
+    {"JH": "X7-4-48", "NY": "198206", "HS": 21.0, "CYFS": "1B2", "SCTS": 31.0, "PL": 0.0},
+    {"JH": "N6-D3-P2126", "NY": "198207", "HS": 24.0, "CYFS": "2A1", "SCTS": 28.0, "PL": 1.2},
+    {"JH": "X7-4-50", "NY": "198206", "HS": 12.5, "CYFS": "1B2", "SCTS": 29.0, "PL": 0.0},
+    {"JH": "X7-4-50", "NY": "198207", "HS": 95.0, "CYFS": "1B2", "SCTS": 29.0, "PL": 0.0},
+    # no measurement that month
+    {"JH": "X7-4-49", "NY": "198206", "HS": None, "CYFS": "1B2", "SCTS": 33.0, "PL": 0.0},
+)
+"""Fabricated data. Counts inside are deliberately distinguishable:
+
+* ``dba04_cy4`` -> 6 rows match, the right answer;
+* ``dba04_cy1`` -> 2 rows match, so a wrong plant suffix shows up as 2;
+* ``dba04``     -> 3 rows match, so ignoring the suffix rule shows up as 3.
+
+A decoy that returns 0 would be the dangerous case: "no rows" also looks like a real
+answer, and nothing would tell you the table was wrong."""
+
+SAMPLE_SCHEMA_HEADER = """\
+-- Offline replica of the reference server's dba04_cy4: same 53 columns, invented rows.
+-- The 2,173,779-row table lives on the intranet; this file exists so the demo runs anywhere.
 """
 
-SAMPLE_EXPECTED = 4
-"""Rows matching HS > 25 AND HS < 28 in the sqlite sample above."""
+
+def _ddl(table: str, columns: tuple[tuple[str, str], ...]) -> str:
+    body = ",\n  ".join(f"{name} {kind}" for name, kind in columns)
+    return f"CREATE TABLE {table} (\n  {body}\n);\n"
+
+
+def _insert(table: str, rows: tuple[dict[str, object], ...]) -> str:
+    names = list(rows[0])
+    for row in rows:
+        if list(row) != names:
+            raise ValueError(f"{table}: every row must name the same columns, in order")
+    cols = ", ".join(names)
+    lines = []
+    for row in rows:
+        values = ", ".join(_sql_literal(row[name]) for name in names)
+        lines.append(f"    ({values})")
+    return f"INSERT INTO {table} ({cols}) VALUES\n" + ",\n".join(lines) + ";\n"
+
+
+def _sql_literal(value: object) -> str:
+    if value is None:
+        return "NULL"
+    if isinstance(value, str):
+        return "'" + value.replace("'", "''") + "'"
+    return repr(value)
+
+
+def _sample_schema() -> str:
+    parts = [
+        SAMPLE_SCHEMA_HEADER,
+        _ddl("dba04_cy4", DBA04_CY4_COLUMNS),
+        _insert("dba04_cy4", SAMPLE_ROWS),
+        "-- decoys: same shape, other plants / the un-sharded parent table\n",
+        _ddl("dba04_cy1", DBA04_CY4_COLUMNS),
+        _insert(
+            "dba04_cy1",
+            (
+                {"JH": "X7-4-46", "NY": "198206", "HS": 26.0, "CYFS": "1B2"},
+                {"JH": "X7-4-46", "NY": "198207", "HS": 27.0, "CYFS": "1B2"},
+            ),
+        ),
+        _ddl("dba04", DBA04_CY4_COLUMNS),
+        _insert(
+            "dba04",
+            (
+                {"JH": "X7-4-46", "NY": "198206", "HS": 26.0, "CYFS": "1B2"},
+                {"JH": "X7-4-46", "NY": "198207", "HS": 26.5, "CYFS": "1B2"},
+                {"JH": "X7-4-47", "NY": "198206", "HS": 27.9, "CYFS": "1B2"},
+            ),
+        ),
+    ]
+    return "\n".join(parts)
+
+
+SAMPLE_SCHEMA = _sample_schema()
+
+SAMPLE_EXPECTED = 6
+"""Rows matching HS > 25 AND HS < 28 in the offline replica above."""
 
 
 def tool_call(tool: str, **arguments) -> str:
@@ -263,6 +406,26 @@ def _parse(parser: argparse.ArgumentParser) -> argparse.Namespace:
     raise AssertionError("unreachable")  # parser.error 会退出
 
 
+def _require_reachable(connect, label: str) -> None:
+    """Fail early and clearly when the remote server cannot be reached.
+
+    The reference MySQL lives on the intranet.  Without this check the first sign of
+    trouble is a pymysql traceback from inside a tool call, several seconds into a model
+    run -- which reads like a code bug rather than "you are not on the company network".
+    """
+    try:
+        connect().close()
+    except Exception as exc:
+        print(f"cannot reach {label}: {type(exc).__name__}: {exc}", file=sys.stderr)
+        print(
+            "\nThat server is only reachable from the intranet.  Drop --mysql to use the"
+            " offline replica of dba04_cy4 (same 53 columns, fabricated rows):"
+            "\n    python scripts\\agent_sql_demo.py --backend local",
+            file=sys.stderr,
+        )
+        raise SystemExit(2) from None
+
+
 def main() -> None:
     # allow_abbrev=False：默认情况下 `--max-row 1` 会被静默缩写成
     # --max-rows，打错字照样生效。和这个仓库其它地方同一条规矩 ——
@@ -340,10 +503,11 @@ def main() -> None:
             database=args.database,
         )
         label = f"mysql {args.user}@{args.host}:{args.port}/{args.database or '(none)'}"
+        _require_reachable(connect, label)
     else:
         path = build_sample_db(DEFAULT_WORKSPACE / "sqldemo.db")
         connect = sqlite_connector(path)
-        label = f"sqlite {path}"
+        label = f"sqlite {path} (offline replica: 53 columns, {len(SAMPLE_ROWS)} rows)"
 
     allowed = frozenset(t.strip() for t in args.allow_tables.split(",") if t.strip())
     policy = SQLPolicy(
@@ -399,6 +563,11 @@ def main() -> None:
     print(f"policy   : max_rows={policy.max_rows} allowlist={sorted(allowed) or 'any'}")
     print(f"domain   : {'injected' if not args.no_domain_notes else 'NOT injected'}")
     print(f"tools    : {agent.tools.names}")
+    if not args.mysql:
+        print(
+            f"replica  : {SAMPLE_EXPECTED} rows match HS in (25, 28);"
+            f" pass --expect-count {SAMPLE_EXPECTED} to assert it"
+        )
     print(f"question : {args.question}")
 
     result = agent.run(args.question)

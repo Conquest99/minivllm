@@ -60,9 +60,13 @@
 python scripts\agent_demo.py                            # 确定性，无需 GPU
 python scripts\agent_demo.py --backend scripted-error   # 看工具错误如何被回灌
 python scripts\agent_demo.py --backend local            # 真实 0.5B 模型
-python scripts\agent_sql_demo.py                        # 只读查 SQLite（自动建样例库）
+python scripts\agent_sql_demo.py                        # 只读查本地副本（53 列，自动建库）
 python scripts\agent_sql_demo.py --explore              # 直接倒 schema，不走模型
+python scripts\agent_sql_demo.py --mysql                # 真库，仅内网可达
 ```
+
+> `agent_workspace\sqldemo.db` 是参考库 `dba04_cy4` 的离线副本：53 列同名同类型，
+> 数据是编的（14 行）。真库有 217 万行，只能从内网连。
 
 ## 安装
 

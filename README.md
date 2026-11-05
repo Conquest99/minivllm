@@ -64,9 +64,14 @@ Part two, [miniagent](miniagent/), is a hand-written agent loop on top of this e
 python scripts\agent_demo.py                            # deterministic, no GPU
 python scripts\agent_demo.py --backend scripted-error   # watch error recovery
 python scripts\agent_demo.py --backend local            # the real 0.5B checkpoint
-python scripts\agent_sql_demo.py                        # read-only SQL over a sample sqlite db
+python scripts\agent_sql_demo.py                        # read-only SQL over the local replica
 python scripts\agent_sql_demo.py --explore               # dump the schema, no model involved
+python scripts\agent_sql_demo.py --mysql                 # the real table (intranet only)
 ```
+
+> `agent_workspace\sqldemo.db` is an offline replica of the reference `dba04_cy4`: the
+> same 53 columns with the same types, but only 14 invented rows.  The real table has
+> 2,173,779 rows and is reachable only from the intranet.
 
 ## Install
 

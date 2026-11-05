@@ -315,6 +315,21 @@ SELECT `井号`, `厂名` FROM `长垣单井基础信息表` WHERE `厂名` = %s
 
 ## 6. 手工验真实 MySQL（测试覆盖不到的部分）
 
+> 参考服务器（`data` 库 59 张表，`dba04_cy4` 有 217 万行）**只能从内网访问**。
+> 不在公司网络时，`--mysql` 会在建立连接那一步就退出：
+>
+> ```
+> cannot reach mysql root@100.81.78.48:3306/data: OperationalError: ...
+> That server is only reachable from the intranet.  Drop --mysql to use the
+> offline replica of dba04_cy4 (same 53 columns, fabricated rows)
+> ```
+>
+> 离线副本（`agent_workspace/sqldemo.db`）就是为这个场景准备的：**列名和列类型与
+> 真表完全一致（53 列）**，只有数据是编的（14 行）。`describe_table` 看到的形状、
+> `SELECT *` 的宽度、`HS` 是 `REAL/DOUBLE` 而不是 text —— 全部和真库一样，所以
+> sqlite 上验过的行为对 MySQL 也成立，只有 `information_schema` 与反引号这两条
+> 路径需要上内网再验。
+
 ```powershell
 uv pip install --python .venv\Scripts\python.exe pymysql
 
