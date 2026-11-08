@@ -39,7 +39,9 @@ loop:
 | [scripts/agent_files_demo.py](../../scripts/agent_files_demo.py) | 真的建/改文件，并对比磁盘内容 | 小模型改错行还自信报成功的现场 | [scripts-agent_files_demo.md](scripts-agent_files_demo.md) |
 | [scripts/agent_sql_demo.py](../../scripts/agent_sql_demo.py) | 只读查库，`--explore` 直接倒 schema | 三种后端；SQLite 免服务器，MySQL 需凭据 | [sql_tools.md](sql_tools.md) |
 | [serve/app.py](../../serve/app.py) + [sessions.py](../../serve/sessions.py) | `POST /chat` 多轮 + SSE 流式 | 上下文放服务端；事件协议；模型锁的粒度 | [serve.md](serve.md) |
+| [serve/mcp_server.py](../../serve/mcp_server.py) | 把工具集挂成 MCP 服务器（JSON-RPC / stdio） | 协议错误 vs 工具错误；`inputSchema` 就是 `parameters` | [mcp.md](mcp.md) |
 | [scripts/serve_chat.py](../../scripts/serve_chat.py) | 起服务：后端 / 工具 / 提示词装配 | `--max-turns` 控制上下文长度 | [serve.md](serve.md) |
+| [scripts/serve_mcp.py](../../scripts/serve_mcp.py) | 起 MCP 服务器（给 Claude Desktop 之类用） | stdout 只能有 JSON-RPC | [mcp.md](mcp.md) |
 
 测试（219 个；除 e2e 外都是纯 CPU、无需模型/服务器）：
 
@@ -50,6 +52,8 @@ loop:
 | [test_agent_loop.py](../../tests/test_agent_loop.py) | 控制流全部分支 + 六条护栏 | [tests-loop.md](tests-loop.md) |
 | [test_agent_sql_tools.py](../../tests/test_agent_sql_tools.py) | 真 SQL、注入面、只读强制、中文标识符、静默错误的拒绝 | [sql_tools.md](sql_tools.md) |
 | [test_serve.py](../../tests/test_serve.py) | SSE 帧格式、按轮裁剪、多轮上下文、异常不断流 | [serve.md](serve.md) |
+| [test_mcp.py](../../tests/test_mcp.py) | JSON-RPC 形状、错误分层、`isError`、resources | [mcp.md](mcp.md) |
+| [test_backends.py](../../tests/test_backends.py) | 新增后端要接的 6 处接线（工厂 / 导出 / 每个脚本） | [backends.md](backends.md) |
 
 **建议阅读顺序**：本页（伪代码）→ `types` → `tools` → `parser` → `agent` → `backends` → `builtin_tools` → `sql_tools` → 三个 demo → `serve` → 测试。
 

@@ -161,7 +161,11 @@ class MCPServer:
         }
 
     def _resources_list(self) -> dict[str, Any]:
-        return {"resources": [{"uri": uri, "name": name, "mimeType": "text/plain"} for uri, name in self._tables()]}
+        return {
+            "resources": [
+                {"uri": uri, "name": name, "mimeType": "text/plain"} for uri, name in self._tables()
+            ]
+        }
 
     def _resources_read(self, params: dict[str, Any]) -> dict[str, Any]:
         uri = params.get("uri")

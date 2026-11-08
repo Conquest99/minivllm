@@ -86,6 +86,9 @@ def describe_backend(kind: str, args) -> object:
         from miniagent.backends import EchoBackend
 
         return EchoBackend()
+    if kind == "echo2":
+        from miniagent.backends import EchoBackend2
+        return EchoBackend2()
     raise ValueError(f"unknown backend {kind!r}")
     raise SystemExit(f"unknown backend {kind!r}")
 
@@ -107,7 +110,7 @@ def main() -> None:
     parser.add_argument(
         "--backend",
         default="scripted",
-        choices=["scripted", "scripted-error", "local", "api", "echo"],
+        choices=["scripted", "scripted-error", "local", "api", "echo", "echo2"],
         help="scripted = deterministic fake model (no torch); echo = reply with the question",
     )
     parser.add_argument("--question", default=QUESTION)
