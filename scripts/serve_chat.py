@@ -134,10 +134,13 @@ def main() -> None:
         from miniagent.backends import EchoBackend
 
         backend = EchoBackend()
-    else:
+    elif args.backend == "api":
         from miniagent.backends import OpenAICompatBackend
 
         backend = OpenAICompatBackend(model=args.model or "deepseek-chat")
+    else:
+        # 显式的兜底：漏写分支时应该骂人，不该默默用别的后端
+        raise SystemExit(f"unhandled backend {args.backend!r}")
 
     tools, prompt = build_tools(args.tools)
     app = create_app(

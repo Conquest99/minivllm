@@ -538,11 +538,14 @@ def main() -> None:
         from miniagent.backends import EchoBackend
 
         backend = EchoBackend()
-    else:
+    elif args.backend == "local":
         from miniagent.backends import MiniVLLMBackend
 
         backend = MiniVLLMBackend(device=args.device, dtype=args.dtype)
         print(backend.describe())
+    else:
+        # 显式的兜底而不是 else 当 local 用：漏写分支时应该骂人，不该默默加载 0.5B
+        raise SystemExit(f"unhandled backend {args.backend!r}")
 
     tools = make_sql_tools(sandbox)
 

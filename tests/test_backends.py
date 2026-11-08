@@ -94,10 +94,44 @@ def test_every_cli_script_offers_echo(script: str):
         "serve_chat.py",
     ],
 )
-def test_every_cli_script_dispatches_echo(script: str):
-    """``choices`` 里有还不够：还要真的有一个分支构造它，否则会掉到 else 里跑错后端。"""
+def test_every_declared_choice_is_actually_dispatched(script: str):
+    """``choices`` 里的每个名字都必须还有第二处出现（也就是一个分支）。
+
+    这是「第 6 条」那个坑的通用版本：名字加进 ``choices`` 却没写分支，脚本**不会报
+    错**，而是掉进 ``else`` 去跑本地 0.5B。你会以为新后端很慢，其实是跑错后端了。
+
+    断言方式是数出现次数：只在 ``choices=[...]`` 里出现过一次的名字，一定没有分支。
+    """
     source = (SCRIPTS / script).read_text(encoding="utf-8")
-    assert "EchoBackend" in source, f"{script} lists echo but never constructs it"
+    undelivered = []
+    for choice in _backend_choices(SCRIPTS / script):
+        occurrences = len(re.findall(rf'"{re.escape(choice)}"', source))
+        if occurrences < 2:
+            undelivered.append(choice)
+    assert not undelivered, (
+        f"{script}: {undelivered} listed in --backend choices but never dispatched; "
+        "add an `elif args.backend == ...` branch (and an explicit else that raises)"
+    )
+
+
+@pytest.mark.parametrize(
+    "script",
+    [
+        "agent_demo.py",
+        "agent_files_demo.py",
+        "agent_sql_demo.py",
+        "serve_chat.py",
+    ],
+)
+def test_no_script_uses_a_bare_else_to_mean_local(script: str):
+    """``else: 加载本地模型`` 是同一类隐患：任何时候漏一个分支都会静默变成 local。
+
+    现在每个脚本都以 ``raise SystemExit`` 收尾，所以漏分支会立刻大声失败。
+    """
+    source = (SCRIPTS / script).read_text(encoding="utf-8")
+    assert "unhandled backend" in source or "raise ValueError" in source, (
+        f"{script} needs an explicit fallback branch that raises"
+    )
 
 
 # ---------------------------------------------------------------- 行为

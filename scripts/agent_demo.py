@@ -88,6 +88,7 @@ def describe_backend(kind: str, args) -> object:
         return EchoBackend()
     if kind == "echo2":
         from miniagent.backends import EchoBackend2
+
         return EchoBackend2()
     raise ValueError(f"unknown backend {kind!r}")
     raise SystemExit(f"unknown backend {kind!r}")
