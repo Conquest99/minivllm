@@ -36,6 +36,7 @@ _FENCE = re.compile(r"```(?:json|JSON)?\s*\n?(.*?)\s*```", re.DOTALL)
 _REACT = re.compile(
     r"Action\s*:\s*(?P<name>[A-Za-z_][\w.\-]*)\s*(?:\r?\n)+\s*Action\s*Input\s*:\s*"
     r"(?P<args>\{[^\n]*\}|[^\n]+)",
+    # 此处做了尝试修改
     re.IGNORECASE,
 )
 _TRAILING_COMMA = re.compile(r",\s*([}\]])")
@@ -146,6 +147,27 @@ def _looks_like_a_bare_object(text: str) -> bool:
     return stripped.startswith("{") and stripped.endswith("}") and len(stripped) > 2
 
 
+_JSON_DECODER = json.JSONDecoder()
+
+
+def _find_embedded_call(text: str) -> dict | None:
+    """在文本**任意位置**找第一个「带 name 键的 JSON 对象」。
+
+    用 ``raw_decode`` 而不是正则：花括号可以嵌套，``\\{.*?\\}`` 会在第一个 ``}`` 处截断，
+    ``{"name": "a", "arguments": {"x": 1}}`` 直接废掉。
+
+    找到就返回，**不执行**。调用方拿它去报错 —— 见 ``parse`` 第 5 步。
+    """
+    for match in re.finditer(r"\{", text):
+        try:
+            obj, _end = _JSON_DECODER.raw_decode(text, match.start())
+        except ValueError:
+            continue  # JSONDecodeError 是 ValueError 的子类
+        if isinstance(obj, dict) and any(key in obj for key in _NAME_KEYS):
+            return obj
+    return None
+
+
 def parse(text: str) -> ParseResult:
     """从 ``text`` 里取出每一个工具调用，并把调用块从散文里剥掉。"""
     if not text:
@@ -248,6 +270,26 @@ def parse(text: str) -> ParseResult:
             '<tool_call>{"name": "...", "arguments": {...}}</tool_call> block.'
         )
         leftover = leftover[: stray.start()]
+
+    # 6) 夹在句子中间的「工具调用形状的 JSON」—— 认出意图，但**拒绝执行**
+    #
+    # ``我现在调用工具 {"name": "calculator", "arguments": {"expression": "1+1"}} 请你执行``
+    # 原本 calls 和 errors 都空，于是整句变成了最终答案。用户看到的是半截 JSON。
+    #
+    # 为什么不直接执行它：误判的代价不对称。实测「删除文件该怎么写？」这种问题里，一段
+    # 讲解用的 JSON 会被真的执行 —— 文件被删掉。漏判只是难看，误判是事故。
+    #
+    # 所以这里是第三条路：告诉模型「你写了调用但没包标签，所以我没有执行」。
+    if not calls and not errors:
+        embedded = _find_embedded_call(leftover)
+        if embedded is not None:
+            preview = json.dumps(embedded, ensure_ascii=False)[:120]
+            errors.append(
+                f"this reply contains {preview} in the middle of the text, but a tool call "
+                "was not executed because it was not wrapped in tags. Send exactly "
+                '<tool_call>{"name": "...", "arguments": {...}}</tool_call>, or, if you were '
+                "quoting an example, describe it in words instead."
+            )
 
     return ParseResult(text=leftover.strip(), calls=calls, errors=errors)
 

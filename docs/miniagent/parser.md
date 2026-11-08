@@ -347,4 +347,44 @@ def format_tool_call(name: str, arguments: dict, *, style: str = "qwen") -> str:
 
 2. 把 `_REACT` 里的 `\{[^\n]*\}` 改成 `\{.*?\}`，跑 `test_react_with_nested_json_arguments`，看它如何失败。
 3. 写一个回复 `我现在调用工具 {"name": "calculator", "arguments": {}}`（前后有中文），确认裸 JSON 分支**不会**误判（因为没有标签包裹且不是整段 JSON），然后想想要不要补一个「任意位置 JSON」的分支。
+
+   **答案**：确实不会误判 —— `calls=[]`。但**原来是 `errors=[]`**，于是整句变成了最终
+   答案，用户看到的是半截 JSON：
+
+   ```
+   stopped : final_answer
+   answer  : '我现在调用工具 {"name": "calculator", "arguments": {}} 请你执行'
+   ```
+
+   要不要补「任意位置 JSON」？三条路，**误判的代价不对称**：
+
+   | 方案 | 模型真想调用 | 模型在讲解格式 |
+   |---|---|---|
+   | 沉默（原状） | ❌ 用户看到 JSON 原文 | ✅ 正常 |
+   | 任意位置**直接执行** | ✅ | ❌ **误删文件** |
+   | 认出但**拒绝执行**（现在） | ✅ 收到提示后重发 | ⚠️ 多跑一轮，然后正常 |
+
+   中间那格不是理论担忧，是实测。用户只是在问「删除文件该怎么写？」：
+
+   ```python
+   {"name": "delete_file", "arguments": {"path": "todo.txt"}} 就是删除文件用的
+   ```
+
+   加一个「任意位置找 `{...}` 并执行」的分支后，在真实对话里（模型早就 `read_file`
+   过那个文件）结果就是 `-> result: deleted todo.txt`。写前必读的护栏只在「没读过」
+   时拦住它 —— 那是运气，不是设计。
+
+   **所以现在走第三条路**：`_find_embedded_call` 用 `json.JSONDecoder().raw_decode`
+   定位「带 `name` 键的 JSON 对象」（不能用 `\{.*?\}`，否则 `{"a": {"b": 1}}` 会在第一个
+   `}` 处被截断），找到就**报错、不执行**：
+
+   ```
+   this reply contains {"name": "calculator", ...} in the middle of the text, but a tool
+   call was not executed because it was not wrapped in tags. Send exactly
+   <tool_call>{"name": "...", "arguments": {...}}</tool_call>, or, if you were quoting an
+   example, describe it in words instead.
+   ```
+
+   代价是「讲解格式」时多跑一轮修复；收益是「想调用却没包标签」不再变成一句垃圾答案。
+   句子中间夹的 `{x}`（不是合法 JSON）仍然算正常散文，不会被打扰。
 4. 把 `_load_object` 里 `ast.literal_eval` 那层删掉，跑 `test_single_quotes_are_tolerated`，看它失败。

@@ -152,7 +152,36 @@ def test_a_bare_object_that_does_not_parse_is_an_error_not_an_answer():
     assert result.errors and "not parseable" in result.errors[0]
 
 
-def test_prose_with_braces_in_the_middle_is_still_prose():
+def test_a_call_shaped_json_in_the_middle_of_prose_is_refused_not_executed():
+    """认出意图，但**拒绝执行** —— 这是误判代价不对称的结果。
+
+    直接执行它的话，「删除文件该怎么写？」这类问题里的一段讲解 JSON 会被真的执行，
+    文件就没了（实测过）。所以只报错：告诉模型「你写了调用但没包标签，我没有执行」。
+    """
+    text = '我现在调用工具 {"name": "calculator", "arguments": {"expression": "1+1"}} 请你执行'
+    result = parse(text)
+    assert result.calls == [], "must not execute a call that was never wrapped in tags"
+    assert result.errors, "and must not stay silent either -- silence makes it the answer"
+    assert "was not executed" in result.errors[0]
+
+
+def test_nested_json_in_prose_is_located_despite_the_braces():
+    """``raw_decode`` 而不是 ``\\{.*?\\}``：后者会在第一个 ``}`` 处截断嵌套对象。"""
+    result = parse('试试 {"name": "a", "arguments": {"deep": {"x": 1}}} 这个')
+    assert result.calls == []
+    assert result.errors and '"deep"' in result.errors[0]
+
+
+def test_a_wrapped_call_with_leading_prose_is_still_executed():
+    """有了标签就照常执行 —— 报错只针对「没包标签」的那种。"""
+    text = '好的<tool_call>{"name": "calculator", "arguments": {"expression": "1+1"}}</tool_call>'
+    result = parse(text)
+    assert [c.name for c in result.calls] == ["calculator"]
+    assert result.errors == []
+    assert result.text == "好的"
+
+
+def test_prose_with_braces_is_still_prose():
     """只在**整段**被花括号包着时才判成坏调用，否则会冤枉正常回答。"""
     result = parse("答案是 {x} 这个集合")
     assert result.calls == [] and result.errors == []
