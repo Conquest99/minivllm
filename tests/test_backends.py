@@ -85,6 +85,35 @@ def test_every_cli_script_offers_echo(script: str):
     assert "echo" in choices, f"{script} must accept --backend echo; has {choices}"
 
 
+ALIASES = {"openai"}
+"""``build_backend`` 里的别名，故意不出现在 ``--backend`` 的 choices 里。"""
+
+
+def _factory_names() -> set[str]:
+    """从 ``build_backend`` 源码里读出它认得的所有名字。"""
+    source = (ROOT / "miniagent" / "backends.py").read_text(encoding="utf-8")
+    body = source[source.index("def build_backend") :]
+    body = body[: body.index("__all__")]
+    names: set[str] = set()
+    for literal in re.findall(r"if kind (?:==|in) (.+?):", body):
+        names.update(re.findall(r'"([^"]+)"', literal))
+    return names - ALIASES
+
+
+def test_every_factory_backend_is_reachable_from_the_main_demo():
+    """工厂里注册了、但没有任何 CLI 能选到 —— 那就是摆设。
+
+    ``agent_demo.py`` 是通用演示脚本，所以「工厂里的名字它都能选」是个合理的不变量。
+    新增后端时这条会先红，比等用户发现 ``unrecognized arguments`` 好。
+    """
+    offered = set(_backend_choices(SCRIPTS / "agent_demo.py"))
+    missing = _factory_names() - offered
+    assert not missing, (
+        f"build_backend knows {sorted(missing)} but agent_demo.py does not offer them; "
+        "add them to choices=[...] and to describe_backend()"
+    )
+
+
 @pytest.mark.parametrize(
     "script",
     [
