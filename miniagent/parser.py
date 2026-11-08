@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from miniagent.types import ToolCall
 
 _TOOL_TAG = re.compile(r"<tool_call>\s*(.*?)\s*</tool_call>", re.DOTALL)
+_OPEN_TAG = re.compile(r"<tool_call>", re.IGNORECASE)
 _FENCE = re.compile(r"```(?:json|JSON)?\s*\n?(.*?)\s*```", re.DOTALL)
 _REACT = re.compile(
     r"Action\s*:\s*(?P<name>[A-Za-z_][\w.\-]*)\s*(?:\r?\n)+\s*Action\s*Input\s*:\s*"
@@ -71,7 +72,14 @@ def _load_object(blob: str) -> dict | None:
         except (json.JSONDecodeError, ValueError):
             try:
                 value = ast.literal_eval(candidate)
-            except (ValueError, SyntaxError, MemoryError, RecursionError):
+            except Exception:
+                # ``literal_eval`` 的官方契约是 ValueError / TypeError / SyntaxError /
+                # MemoryError / RecursionError，而 **TypeError 不在**上面的元组里 ——
+                # 它真的会抛：``{"a": {{1, 2}}}`` 会让它去建一个「装 set 的 set」，然后
+                # ``TypeError: unhashable type: 'set'`` 一路穿出 ``parse``。
+                #
+                # ``parse`` 的整个设计前提是「坏输出永不抛异常」，所以这里必须兜住一切：
+                # 模型写出来的畸形文本，没有任何一种值得让整轮运行崩掉。
                 continue
         return value if isinstance(value, dict) else None
     return None
@@ -128,6 +136,16 @@ def _resolve_lone_json(text: str) -> list[ToolCall] | None:
     return [_normalise(obj, text)]
 
 
+def _looks_like_a_bare_object(text: str) -> bool:
+    """整段回复被一对花括号包着 —— 强信号：模型想发一个 JSON 工具调用。
+
+    只认「整段」，不认「句子里夹了一个 {...}」：后者是讲解性文本，误判会白白多跑一轮
+    修复。宁可漏判一种，也不要冤枉一段正常的回答。
+    """
+    stripped = text.strip()
+    return stripped.startswith("{") and stripped.endswith("}") and len(stripped) > 2
+
+
 def parse(text: str) -> ParseResult:
     """从 ``text`` 里取出每一个工具调用，并把调用块从散文里剥掉。"""
     if not text:
@@ -167,9 +185,25 @@ def parse(text: str) -> ParseResult:
 
     # 3) 整个回复就是一个 JSON 对象
     if not calls and not errors:
-        lone = _resolve_lone_json(text.strip())
+        try:
+            lone = _resolve_lone_json(text.strip())
+        except ValueError as exc:
+            # ``_normalise`` 会为「有 name 键但不是字符串」抛 ValueError（比如
+            # ``{"name": null}``）。这里必须接住 —— 否则它就是一个能让 ``parse``
+            # 抛异常、把整轮运行带崩的输入。
+            errors.append(str(exc))
+            lone = None
+            leftover = ""
         if lone:
             calls = lone
+            leftover = ""
+        elif not errors and _looks_like_a_bare_object(text):
+            # 整段就是一个 {...} 但解析不了：这就是一次写坏的工具调用，不是答案。
+            # 不报错的话它会变成 final_answer，而模型以为自己调了工具。
+            errors.append(
+                f"the whole reply looks like a JSON object but is not parseable: {text.strip()[:120]!r}. "
+                'Send exactly one <tool_call>{"name": "...", "arguments": {...}}</tool_call> block.'
+            )
             leftover = ""
 
     # 4) ReAct 风格
@@ -195,6 +229,25 @@ def parse(text: str) -> ParseResult:
                 except ValueError as exc:
                     errors.append(str(exc))
             leftover = (text[: match.start()] + text[match.end() :]).strip()
+
+    # 5) 未闭合的 <tool_call> —— 几乎总是 max_tokens 把它砍在半路
+    #
+    # ``_TOOL_TAG`` 要求闭合，所以截断的输出**一个都匹配不上**，于是 calls 和 errors
+    # 都是空的。而 ``Agent.run`` 的「模型答完了」判据正是「两个都空」—— 半截工具调用
+    # 会被当成最终答案原样返回。实测：``<tool_call>{"name": "calculator", "arguments":
+    # {"expressio`` 会得到 ``stopped=final_answer``、0 个错误。
+    #
+    # 所以这里必须说话。说不了「该怎么改」，至少要说「被截断了，重发一次」。
+    stray = _OPEN_TAG.search(leftover)
+    if stray is not None:
+        tail = leftover[stray.end() :].strip()
+        errors.append(
+            "a <tool_call> was opened but never closed"
+            + (f" (content: {tail[:120]!r})" if tail else "")
+            + "; the reply was probably cut off by max_tokens. Send exactly one complete "
+            '<tool_call>{"name": "...", "arguments": {...}}</tool_call> block.'
+        )
+        leftover = leftover[: stray.start()]
 
     return ParseResult(text=leftover.strip(), calls=calls, errors=errors)
 

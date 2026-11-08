@@ -311,6 +311,40 @@ def format_tool_call(name: str, arguments: dict, *, style: str = "qwen") -> str:
 ## 动手练习
 
 1. 构造 `<tool_call>{"name": "a", "arguments": {}}</tool_call>` 和一个不闭合的 `<tool_call>{"name": "b"}`，看 `parse` 返回什么。
+
+   **答案**：闭合的正常返回 `[('a', {})]`；不闭合的返回 `calls=[]`、`errors=[]`、
+   `text='<tool_call>{"name": "b"}'` —— 也就是说**没有任何东西报错**。
+
+   而这个形状在真实场景里几乎必然出现：**`max_tokens` 把回复砍在半路**。`_TOOL_TAG`
+   要求闭合标签，所以一个都不匹配，`errors` 也没机会被填；而 `Agent.run` 判断「模型答完
+   了」的条件正是「`calls` 和 `errors` 都空」——
+
+   ```python
+   if not parsed.calls and not parsed.errors:      # ← 两个都空
+       return result(parsed.text.strip() or reply.strip(), reason)   # 半截调用当成答案
+   ```
+
+   实测（用 `EchoBackend` 回显一段截断的调用）：
+
+   ```
+   stopped : final_answer
+   answer  : '<tool_call>{"name": "calculator", "arguments": {"expressio'
+   tools   : 0 | errors: 0
+   ```
+
+   修法是让 `parse` 在发现**未闭合**的 `<tool_call>` 时明确报错（并给出「重发一个完整
+   块」的提示），于是 agent 走修复分支，而不是把半截调用当答案。现在同一个输入得到
+   `stopped: too_many_errors`。
+
+   顺带挖出两个更深的坑：
+
+   * `ast.literal_eval` 的官方契约包含 **`TypeError`**，而原代码只捕
+     `(ValueError, SyntaxError, MemoryError, RecursionError)`。`{"a": {{1, 2}}}` 会让它
+     去建「装 set 的 set」，`TypeError: unhashable type: 'set'` **一路穿出 `parse`** ——
+     直接违反模块的「坏输出永不抛异常」契约。
+   * 「整段就是一个 `{...}` 但解析不了」原本静默变成了最终答案。现在会报错，因为整段被
+     一对花括号包着是这个意图的强信号（只在**整段**成立时才判，句子里夹一个 `{x}` 不算）。
+
 2. 把 `_REACT` 里的 `\{[^\n]*\}` 改成 `\{.*?\}`，跑 `test_react_with_nested_json_arguments`，看它如何失败。
 3. 写一个回复 `我现在调用工具 {"name": "calculator", "arguments": {}}`（前后有中文），确认裸 JSON 分支**不会**误判（因为没有标签包裹且不是整段 JSON），然后想想要不要补一个「任意位置 JSON」的分支。
 4. 把 `_load_object` 里 `ast.literal_eval` 那层删掉，跑 `test_single_quotes_are_tolerated`，看它失败。

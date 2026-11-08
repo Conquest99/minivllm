@@ -126,6 +126,74 @@ def test_empty_input():
     assert result.text == ""
 
 
+def test_a_truncated_tool_call_is_reported_not_silently_answered():
+    """``max_tokens`` 砍在半路时，``_TOOL_TAG`` 一个都匹配不上。
+
+    于是 ``calls`` 和 ``errors`` 都空 —— 而 agent 判断「模型答完了」的条件正是「两个都
+    空」，半截调用会被当成最终答案原样返回。这里锁住「必须报错」。
+    """
+    result = parse('<tool_call>{"name": "b"}')
+    assert result.calls == []
+    assert result.errors, "an unclosed <tool_call> must not look like a finished answer"
+    assert "never closed" in result.errors[0]
+    assert "<tool_call>" not in result.text
+
+
+def test_an_unclosed_tag_does_not_hide_a_complete_one():
+    text = '<tool_call>{"name": "a", "arguments": {}}</tool_call><tool_call>{"name": "b"}'
+    result = parse(text)
+    assert [c.name for c in result.calls] == ["a"]
+    assert result.errors, "the second, truncated call must still be reported"
+
+
+def test_a_bare_object_that_does_not_parse_is_an_error_not_an_answer():
+    result = parse('{"name": "a", "arguments": {{1, 2}}}')
+    assert result.calls == []
+    assert result.errors and "not parseable" in result.errors[0]
+
+
+def test_prose_with_braces_in_the_middle_is_still_prose():
+    """只在**整段**被花括号包着时才判成坏调用，否则会冤枉正常回答。"""
+    result = parse("答案是 {x} 这个集合")
+    assert result.calls == [] and result.errors == []
+
+
+def test_literal_eval_raising_typeerror_cannot_escape_parse():
+    """``ast.literal_eval`` 的契约里有 ``TypeError``，而原代码没捕它。
+
+    ``{"a": {{1, 2}}}`` 会让它去建「装 set 的 set」，然后
+    ``TypeError: unhashable type: 'set'`` 一路穿出 ``parse`` —— 直接违反
+    「坏输出永不抛异常」这个模块前提。
+    """
+    from miniagent.parser import _load_object
+
+    for blob in (
+        '{"name": "a", "arguments": {{1, 2}}}',
+        "{'name': 'a', 'arguments': {{1, 2}}}",
+    ):
+        assert _load_object(blob) is None or isinstance(_load_object(blob), dict)
+
+
+def test_parse_never_raises_on_hostile_input(box=None):
+    """把「永不抛异常」当契约来测，而不是当口号。"""
+    hostile = [
+        "<tool_call>",
+        "</tool_call>",
+        "<tool_call></tool_call>",
+        '<tool_call>{"name": ' + "[" * 200,
+        '<tool_call>{"name": "a", "arguments": "{"}</tool_call>',
+        "Action: x\nAction Input: \x00\x01",
+        "{" * 50,
+        "}",
+        '{"name": null}',
+        '<tool_call>{"function": null}</tool_call>',
+    ]
+    for text in hostile:
+        result = parse(text)  # 抛异常就会红
+        assert isinstance(result.calls, list)
+        assert isinstance(result.errors, list)
+
+
 @pytest.mark.parametrize("style", ["qwen", "bare"])
 def test_format_tool_call_round_trips(style):
     text = format_tool_call("calculator", {"expression": "1+2"}, style=style)
