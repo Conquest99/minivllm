@@ -59,6 +59,31 @@ class LLMBackend(Protocol):
 # ------------------------------------------------------------------ 测试替身
 
 
+class EchoBackend:
+    """把用户的每条消息原封不动地回显回来。
+
+    它看起来像个玩具，但正好能验证一件容易被忽略的事：**agent 不知道模型是谁。**
+    回显不含 ``<tool_call>``，所以 ``parse`` 什么也找不到，循环立刻判定「模型答完了」
+    —— 与真实模型给出一段散文时的路径完全一样。想验证「模型说什么都不会被执行」时用它，
+    比用真模型可靠（真模型偶尔真的会调工具）。
+
+    也支持流式：``on_token`` 把整条回显作为一块发出去。
+    """
+
+    name = "echo"
+
+    def __init__(self) -> None:
+        self.requests: list[list[Message]] = []
+        """记录每一轮收到的消息，测试可以据此断言 prompt 长什么样。"""
+
+    def complete(self, messages, *, tools=None, max_tokens=None, on_token=None) -> str:
+        self.requests.append(list(messages))
+        reply = messages[-1].content if messages else ""
+        if on_token is not None and reply:
+            on_token(reply)
+        return reply
+
+
 class ScriptedBackend:
     """按顺序回放一份写死的回复列表。
 
@@ -303,12 +328,20 @@ class OpenAICompatBackend:
 
 
 def build_backend(kind: str, **kwargs: Any) -> LLMBackend:
-    """小工厂，好让脚本能在命令行上选 ``--backend``。"""
+    """小工厂，好让脚本能在命令行上选 ``--backend``。
+
+    新增一个后端（比如 ``EchoBackend``）时，**这里和每个脚本的 ``--backend`` 都要加**
+    —— 脚本用的是自己的 if/elif 而不是这个工厂，因为 ``local`` 分支还要打印
+    ``describe()``、``scripted`` 分支还要传预设台词。这是本仓库唯一一处「新增一件事要
+    改好几处」的地方，改完跑一遍 ``pytest tests/test_backends.py`` 会把它锁住。
+    """
     if kind == "local":
         return MiniVLLMBackend(**kwargs)
     if kind in {"api", "openai"}:
         return OpenAICompatBackend(**kwargs)
-    raise ValueError(f"unknown backend {kind!r}; choose 'local' or 'api'")
+    if kind == "echo":
+        return EchoBackend()
+    raise ValueError(f"unknown backend {kind!r}; choose 'local', 'api', 'echo' or 'scripted'")
 
 
 __all__ = [
@@ -317,5 +350,6 @@ __all__ = [
     "OpenAICompatBackend",
     "ScriptedBackend",
     "CallableBackend",
+    "EchoBackend",
     "build_backend",
 ]

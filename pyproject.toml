@@ -34,7 +34,11 @@ line-length = 110
 target-version = "py310"
 # ruff also formats python fences inside Markdown, which reflows the deliberately
 # column-aligned snippets in docs/. Keep the docs exactly as written.
-extend-exclude = ["docs"]
+# Test.py / prompt_Test.py are hand-written study notes (pseudo-code with Chinese
+# comments and example call sites), not runnable Python -- they fail to parse or
+# reference names that only exist in the reader's head, so linting them would fail
+# the whole repo.
+extend-exclude = ["docs", "miniagent/Test.py", "miniagent/prompt_Test.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B"]

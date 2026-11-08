@@ -13,6 +13,7 @@
 from miniagent.agent import DEFAULT_SYSTEM_PROMPT, Agent
 from miniagent.backends import (
     CallableBackend,
+    EchoBackend,
     LLMBackend,
     MiniVLLMBackend,
     OpenAICompatBackend,
@@ -51,6 +52,7 @@ __all__ = [
     "DEFAULT_SYSTEM_PROMPT",
     "AgentResult",
     "CallableBackend",
+    "EchoBackend",
     "LLMBackend",
     "Message",
     "MiniVLLMBackend",

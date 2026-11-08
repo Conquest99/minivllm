@@ -91,8 +91,8 @@ def main() -> None:
     parser.add_argument(
         "--backend",
         default="scripted",
-        choices=["scripted", "scripted-error", "local"],
-        help="scripted = deterministic fake model (no torch)",
+        choices=["scripted", "scripted-error", "local", "echo"],
+        help="scripted = deterministic fake model (no torch); echo = reply with the question",
     )
     parser.add_argument("--question", default=QUESTION)
     parser.add_argument("--workspace", default=str(ROOT / "agent_workspace"))
@@ -112,6 +112,10 @@ def main() -> None:
         backend = scripted_backend()
     elif args.backend == "scripted-error":
         backend = scripted_backend_with_error()
+    elif args.backend == "echo":
+        from miniagent.backends import EchoBackend
+
+        backend = EchoBackend()
     else:
         from miniagent.backends import MiniVLLMBackend
 

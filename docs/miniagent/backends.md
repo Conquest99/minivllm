@@ -270,12 +270,84 @@ def build_backend(kind: str, **kwargs) -> LLMBackend:
         return MiniVLLMBackend(**kwargs)
     if kind in {"api", "openai"}:
         return OpenAICompatBackend(**kwargs)
-    raise ValueError(f"unknown backend {kind!r}; choose 'local' or 'api'")
+    if kind == "echo":
+        return EchoBackend()
+    raise ValueError(
+        f"unknown backend {kind!r}; choose 'local', 'api', 'echo' or 'scripted'"
+    )
 ```
 
-给 CLI 用的。`agent_demo.py` 里另有一套 `describe_backend`，因为它还要处理 `scripted` / `scripted-error`。
+### 5.5 `EchoBackend`：把问题原样回显
 
-> 两处重复了类似逻辑，是有意的：`build_backend` 是给「真后端」用的库函数，demo 里的 `describe_backend` 多了两个测试用的假后端。合并的话 demo 就得往库里加测试专用的东西。
+```python
+class EchoBackend:
+    name = "echo"
+
+    def __init__(self) -> None:
+        self.requests: list[list[Message]] = []
+
+    def complete(self, messages, *, tools=None, max_tokens=None, on_token=None) -> str:
+        self.requests.append(list(messages))
+        reply = messages[-1].content if messages else ""
+        if on_token is not None and reply:
+            on_token(reply)
+        return reply
+```
+
+看起来像个玩具，但正好验证一件容易被忽略的事：**agent 根本不知道模型是谁。**
+
+回显里没有 `<tool_call>`，所以 `parse()` 什么也找不到，循环立刻判定「模型答完了」——
+和真实模型给出一段散文时走的是**完全同一条路径**。用它验证「模型说什么都不会被执行」，
+比用真模型可靠（真模型偶尔真的会调工具）。
+
+它还能反过来用：直接把 `<tool_call>` 写进问题里，回显之后会被 `parse` 解析并真的执行。
+这不是 bug，而是它变成「注入测试」的原因：
+
+```python
+agent = Agent(EchoBackend(), [calculator])
+agent.run('<tool_call>{"name":"calculator","arguments":{"expression":"6*7"}}</tool_call>')
+# -> 真的调用了 calculator，答案 42
+```
+
+在 `serve_chat.py` 里它更有用：**不用 GPU 就能走完整的 HTTP + SSE + 会话路径。**
+
+```powershell
+python scripts\serve_chat.py --backend echo      # HTTP/SSE/会话层的确定性测试床
+```
+
+---
+
+## 6.1 新增一个后端要改哪几处
+
+这是本仓库唯一一处「加一件事要动好几处」的地方。漏一处，症状是 `unrecognized
+arguments`——跑到一半才发现。
+
+| # | 位置 | 改什么 | 漏了会怎样 |
+|---|---|---|---|
+| 1 | `miniagent/backends.py` | 写类：`name` + `complete(..., on_token=)` | — |
+| 2 | 同文件 `build_backend` | 加一个分支 | 库函数里用不了 |
+| 3 | 同文件 `__all__` | 加名字 | `from miniagent.backends import X` 报错 |
+| 4 | `miniagent/__init__.py` | import + `__all__` | `from miniagent import X` 报错 |
+| 5 | 每个脚本的 `--backend` `choices` | 加字符串 | `unrecognized arguments: --backend X` |
+| 6 | 每个脚本的分发分支 | `elif args.backend == "X":` | **静默掉进 `else`，跑起本地模型** |
+
+第 6 条是最阴的：`choices` 加了、分支没加，脚本不会报错，而是默默去加载 0.5B。
+你会以为新后端很慢，其实是跑错后端了。
+
+`tests/test_backends.py` 把 5 和 6 变成断言：它静态解析每个脚本的 `choices=[...]`，
+并要求源码里出现 `EchoBackend`。
+
+```python
+@pytest.mark.parametrize("script", ["agent_demo.py", "agent_files_demo.py",
+                                    "agent_sql_demo.py", "serve_chat.py"])
+def test_every_cli_script_dispatches_echo(script):
+    source = (SCRIPTS / script).read_text(encoding="utf-8")
+    assert "EchoBackend" in source
+```
+
+为什么不在 `build_backend` 里统一，避免 5 和 6？因为每个脚本的构造参数不一样：
+`local` 要打印 `describe()`，`scripted` 要传预设台词，`api` 要传 `base_url`。
+统一工厂就得把这些差异塞进 `**kwargs`，反而更绕。
 
 ---
 

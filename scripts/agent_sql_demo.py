@@ -434,7 +434,7 @@ def main() -> None:
     parser.add_argument(
         "--backend",
         default="scripted",
-        choices=["scripted", "scripted-attack", "local"],
+        choices=["scripted", "scripted-attack", "local", "echo"],
         help="scripted = deterministic fake model (no torch)",
     )
     parser.add_argument("--mysql", action="store_true", help="use a real MySQL server")
@@ -534,6 +534,10 @@ def main() -> None:
         backend = scripted_backend()
     elif args.backend == "scripted-attack":
         backend = scripted_backend_attacking()
+    elif args.backend == "echo":
+        from miniagent.backends import EchoBackend
+
+        backend = EchoBackend()
     else:
         from miniagent.backends import MiniVLLMBackend
 

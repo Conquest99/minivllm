@@ -82,6 +82,11 @@ def describe_backend(kind: str, args) -> object:
         from miniagent.backends import OpenAICompatBackend
 
         return OpenAICompatBackend(base_url=args.base_url, model=args.model)
+    if kind == "echo":
+        from miniagent.backends import EchoBackend
+
+        return EchoBackend()
+    raise ValueError(f"unknown backend {kind!r}")
     raise SystemExit(f"unknown backend {kind!r}")
 
 
@@ -102,8 +107,8 @@ def main() -> None:
     parser.add_argument(
         "--backend",
         default="scripted",
-        choices=["scripted", "scripted-error", "local", "api"],
-        help="scripted = deterministic fake model (no torch)",
+        choices=["scripted", "scripted-error", "local", "api", "echo"],
+        help="scripted = deterministic fake model (no torch); echo = reply with the question",
     )
     parser.add_argument("--question", default=QUESTION)
     parser.add_argument("--model", default="deepseek-chat", help="API model name")

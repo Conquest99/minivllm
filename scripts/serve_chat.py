@@ -81,8 +81,8 @@ def main() -> None:
     parser.add_argument(
         "--backend",
         default="local",
-        choices=["local", "scripted", "api"],
-        help="local = the 0.5B checkpoint; scripted = a canned model (no GPU)",
+        choices=["local", "scripted", "api", "echo"],
+        help="local = the 0.5B checkpoint; scripted/echo = canned models (no GPU)",
     )
     parser.add_argument(
         "--tools",
@@ -128,6 +128,12 @@ def main() -> None:
             return "（scripted 后端）拿到工具结果了，这一轮到此结束。"
 
         backend = CallableBackend(decide)
+    elif args.backend == "echo":
+        # 最适合验证服务层本身：不用 GPU、不产生工具调用、但走完整的 HTTP + SSE + 会话
+        # 路径。想问「流式和上下文对不对」的时候，它比真模型可靠得多。
+        from miniagent.backends import EchoBackend
+
+        backend = EchoBackend()
     else:
         from miniagent.backends import OpenAICompatBackend
 
